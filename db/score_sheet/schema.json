@@ -1,0 +1,51 @@
+{
+  "schemaName": "scoreSheet",
+  "dimensionFieldSpecs": [
+    {
+      "name": "name",
+      "dataType": "STRING"
+    },
+    {
+      "name": "age",
+      "dataType": "INT"
+    },
+    {
+      "name": "hasPlayed",
+      "dataType": "BOOLEAN"
+    },
+    {
+      "name": "dateOfBirth",
+      "dataType": "TIMESTAMP"
+    },
+    {
+      "name": "extra",
+      "dataType": "JSON"
+    },
+    {
+      "name": "raw",
+      "dataType": "BYTES"
+    }
+  ],
+  "metricFieldSpecs": [
+    {
+      "name": "totalScore",
+      "dataType": "LONG"
+    },
+    {
+      "name": "avgScore",
+      "dataType": "FLOAT"
+    },
+    {
+      "name": "avgScore_highPrecision",
+      "dataType": "DOUBLE"
+    }
+  ],
+  "dateTimeFieldSpecs": [
+    {
+      "name": "dateOfFirstGame",
+      "dataType": "LONG",
+      "format": "1:MILLISECONDS:EPOCH",
+      "granularity": "1:MILLISECONDS"
+    }
+  ]
+}
