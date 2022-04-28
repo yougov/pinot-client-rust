@@ -7,20 +7,35 @@ Pinot Client Rust
 
 Applications can use this rust client library to query Apache Pinot.
 
-Examples
-========
+Installing Pinot
+================
 
-Please follow this [Pinot Quickstart](https://docs.pinot.apache.org/basics/getting-started/running-pinot-locally) link to install and start Pinot batch quickstart locally.
+To install Pinot locally, please follow this [Pinot Quickstart](https://docs.pinot.apache.org/basics/getting-started/running-pinot-locally) link to install and start Pinot batch quickstart locally.
 
 ```
 bin/quick-start-batch.sh
 ```
 
+Alternatively, the docker contained Pinot database ochestrated by this repository's `docker-compose.yaml` file may be used.
+
+```
+make prepare-pinot
+```
+
+Examples
+========
+
 Check out Client library Github Repo
 
 ```
-git clone git@github.com:xiangfu0/pinot-client-go.git
-cd pinot-client-go
+git clone git@github.com:yougov/pinot-client-rust.git
+cd pinot-client-rust
+```
+
+Start up the docker contained pinot database
+
+```
+make prepare-pinot
 ```
 
 Build and run the example application to query from Pinot Batch Quickstart
@@ -61,7 +76,7 @@ let client = pinot_client_rust::connection::client_from_broker_list(
 Query Pinot
 -----------
 
-Please see this [example](todo/examples/batch-quickstart.rs) for your reference.
+Please see this [example](https://github.com/yougov/pinot-client-rust/blob/master/examples/batch-quickstart.rs) for your reference.
 
 Code snippet:
 ```rust
