@@ -47,14 +47,14 @@ mod test {
     use serde_json::json;
     use serde_json::Value;
 
-    use crate::zookeeper::test::{test_zookeeper_config, test_zookeeper_connection};
+    use crate::zookeeper::test::{test_pinot_cluster_zookeeper_config, test_zookeeper_connection};
 
     use super::*;
 
     #[test]
     fn get_external_view_fetches_specified_external_view() {
         let zk_conn = test_zookeeper_connection();
-        let external_view_zk_path = format_external_view_zk_path(&test_zookeeper_config());
+        let external_view_zk_path = format_external_view_zk_path(&test_pinot_cluster_zookeeper_config());
         let external_view = get_external_view(&zk_conn, &external_view_zk_path).unwrap();
         assert_eq!(external_view.id, "brokerResource".to_string());
     }

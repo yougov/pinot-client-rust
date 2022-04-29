@@ -114,10 +114,10 @@ mod tests {
         if !missing.is_empty() || !additional.is_empty() {
             let mut msg = String::from("Expected doesn't match actual. ");
             if !missing.is_empty() {
-                msg.push_str(format!("Missing: {:?}", &missing).as_str())
+                msg.push_str(format!("Missing: {:?}. ", &missing).as_str())
             }
             if !additional.is_empty() {
-                msg.push_str(format!("Has extra: {:?}", &additional).as_str())
+                msg.push_str(format!("Has extra: {:?}. ", &additional).as_str())
             }
             panic!("{}", &msg)
         }

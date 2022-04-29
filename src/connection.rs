@@ -76,7 +76,7 @@ pub mod tests {
     use crate::broker_selector::tests::TestBrokerSelector;
     use crate::client_transport::tests::TestClientTransport;
     use crate::response::tests::test_broker_response;
-    use crate::zookeeper::test::test_zookeeper_config;
+    use crate::zookeeper::test::test_pinot_cluster_zookeeper_config;
 
     use super::*;
 
@@ -145,7 +145,7 @@ pub mod tests {
         let mut header_map = HeaderMap::new();
         header_map.insert("a", HeaderValue::from_str("b").unwrap());
         let conn = client_from_zookeeper(
-            &test_zookeeper_config(),
+            &test_pinot_cluster_zookeeper_config(),
             Some(header_map),
         ).unwrap();
         let headers = conn.transport.header();
@@ -157,7 +157,7 @@ pub mod tests {
     #[test]
     fn clients_from_zookeeper_provides_empty_header_if_non_provided() {
         let conn = client_from_zookeeper(
-            &test_zookeeper_config(),
+            &test_pinot_cluster_zookeeper_config(),
             None,
         ).unwrap();
         let headers = conn.transport.header();

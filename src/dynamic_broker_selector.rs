@@ -274,9 +274,96 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
 
+    use serde_json::json;
+    use serde_json::Value;
+    use uuid::Uuid;
+
     use crate::tests::{assert_iters_equal_anyorder, to_string_vec};
+    use crate::zookeeper::test::{ensure_root_level_unit_test_node_exists, test_zookeeper_connection};
 
     use super::*;
+
+    #[test]
+    fn auto_refreshing_dynamic_broker_selector_reacts_to_external_view_change() {
+        let zk_conn = test_zookeeper_connection();
+        let root_path = ensure_root_level_unit_test_node_exists(&zk_conn);
+        let external_view_zk_path = format!("{}/{}", root_path, Uuid::new_v4());
+        let external_view_json_first: Value = json!({
+            "id": "brokerResource",
+            "simpleFields": {},
+            "mapFields": {
+                "baseballStats_OFFLINE": {
+                    "Broker_127.0.0.1_8000": "ONLINE",
+                },
+                "": {
+                    "Broker_127.0.0.1_1000": "ONLINE",
+                }
+            },
+            "listFields": {}
+        });
+        let external_view_json_second: Value = json!({
+            "id": "brokerResource",
+            "simpleFields": {},
+            "mapFields": {
+                "baseballStats_OFFLINE": {
+                    "Broker_127.0.0.1_9000": "ONLINE",
+                },
+                "": {
+                    "Broker_127.0.0.1_1100": "ONLINE",
+                }
+            },
+            "listFields": {}
+        });
+        let external_view_bytes_first = serde_json::to_vec(&external_view_json_first).unwrap();
+        let external_view_bytes_second = serde_json::to_vec(&external_view_json_second).unwrap();
+
+        // Create unique address to host test ExternalView and create broker against it
+        zk_conn.create(
+            &external_view_zk_path,
+            external_view_bytes_first,
+            zookeeper::Acl::open_unsafe().to_vec(),
+            zookeeper::CreateMode::Ephemeral,
+        ).unwrap();
+        let dynamic_broker_selector = auto_refreshing_dynamic_broker_selector(
+            test_zookeeper_connection(),
+            external_view_zk_path.clone(),
+            std::time::Duration::from_secs(0),
+        ).unwrap();
+
+        // Ensure the initial data in the ExternalView is reflected in the broker
+        // Done in block to ensure read write locks are released
+        {
+            let table_broker_map = dynamic_broker_selector.table_broker_map.write().unwrap();
+            let all_broker_list = dynamic_broker_selector.all_broker_list.read().unwrap();
+            assert_eq!(*table_broker_map, TableBrokerMap::from_iter(vec![
+                ("baseballStats".to_string(), to_string_vec(vec!["127.0.0.1:8000"])),
+            ]));
+            assert_iters_equal_anyorder(
+                all_broker_list.iter(),
+                to_string_vec(vec!["127.0.0.1:8000", "127.0.0.1:1000"]).iter(),
+            );
+        }
+
+
+        // Change the external view and give a second for watcher to react
+        zk_conn.set_data(
+            &external_view_zk_path,
+            external_view_bytes_second,
+            None,
+        ).unwrap();
+        std::thread::sleep(Duration::from_secs(1));
+
+        // Check updated ExternalView is reflected in the broker
+        let table_broker_map = dynamic_broker_selector.table_broker_map.write().unwrap();
+        let all_broker_list = dynamic_broker_selector.all_broker_list.read().unwrap();
+        assert_eq!(*table_broker_map, TableBrokerMap::from_iter(vec![
+            ("baseballStats".to_string(), to_string_vec(vec!["127.0.0.1:9000"])),
+        ]));
+        assert_iters_equal_anyorder(
+            all_broker_list.iter(),
+            to_string_vec(vec!["127.0.0.1:9000", "127.0.0.1:1100"]).iter(),
+        );
+    }
 
     #[test]
     fn looping_receiver_calls_provided_function_upon_event() {

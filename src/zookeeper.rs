@@ -45,6 +45,11 @@ pub fn connect_to_zookeeper(zk_config: &ZookeeperConfig) -> Result<ZooKeeper> {
     Ok(zk_conn)
 }
 
+pub fn read_zookeeper_node(zk_conn: &ZooKeeper, path: &str) -> Result<Vec<u8>> {
+    let (node, _) = zk_conn.get_data(path, false)?;
+    Ok(node)
+}
+
 pub fn set_up_node_watcher<W: 'static + Watcher>(
     zk_conn: &ZooKeeper,
     path: &str,
@@ -79,14 +84,11 @@ pub fn on_node_status_changed(
     }
 }
 
-pub fn read_zookeeper_node(zk_conn: &ZooKeeper, path: &str) -> Result<Vec<u8>> {
-    let (node, _) = zk_conn.get_data(path, false)?;
-    Ok(node)
-}
-
 #[cfg(test)]
 pub mod test {
     use std::sync::{Arc, RwLock};
+
+    use uuid::Uuid;
 
     use crate::dynamic_broker_selector::DynamicBrokerSelectorError;
     use crate::external_view::{ExternalView, format_external_view_zk_path};
@@ -95,17 +97,48 @@ pub mod test {
 
     #[test]
     fn connect_to_zookeeper_connects() {
-        let result = connect_to_zookeeper(&test_zookeeper_config());
+        let result = connect_to_zookeeper(&test_pinot_cluster_zookeeper_config());
         assert!(result.is_ok());
     }
 
     #[test]
     fn read_zookeeper_node_can_read_external_view() {
         let zk_conn = test_zookeeper_connection();
-        let external_view_zk_path = format_external_view_zk_path(&test_zookeeper_config());
+        let external_view_zk_path = format_external_view_zk_path(&test_pinot_cluster_zookeeper_config());
         let external_view_bytes = read_zookeeper_node(&zk_conn, &external_view_zk_path).unwrap();
         let external_view: ExternalView = serde_json::from_slice(&external_view_bytes).unwrap();
         assert_eq!(external_view.id, "brokerResource".to_string());
+    }
+
+    #[test]
+    fn set_up_node_watcher_reacts_to_node_change() {
+        let zk_conn = test_zookeeper_connection();
+        let root_path = ensure_root_level_unit_test_node_exists(&zk_conn);
+        let path = format!("{}/{}", root_path, Uuid::new_v4());
+        let state: Arc<RwLock<Vec<WatchedEvent>>> = Arc::new(RwLock::new(vec![]));
+        let copy = state.clone();
+
+        zk_conn.create(
+            &path,
+            vec![1, 2, 3],
+            zookeeper::Acl::open_unsafe().to_vec(),
+            zookeeper::CreateMode::Ephemeral,
+        ).unwrap();
+        set_up_node_watcher(&zk_conn, &path, move |event: WatchedEvent| {
+            copy.write().unwrap().push(event)
+        }).unwrap();
+        zk_conn.set_data(&path, vec![4, 5, 6], None).unwrap();
+        std::thread::sleep(Duration::from_secs(1));
+
+        let events = state.read().unwrap();
+        let event: &WatchedEvent = events.get(0).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(event.path, Some(path));
+        assert_eq!(event.keeper_state, zookeeper::KeeperState::SyncConnected);
+        match event.event_type {
+            zookeeper::WatchedEventType::NodeDataChanged => {}
+            _ => panic!("Incorrect event"),
+        }
     }
 
     #[test]
@@ -163,12 +196,33 @@ pub mod test {
         }).is_err());
     }
 
+    pub fn root_level_unit_test_node_path() -> String {
+        "/UnitTests".to_string()
+    }
+
+    pub fn ensure_root_level_unit_test_node_exists(zk_conn: &ZooKeeper) -> String {
+        let path = root_level_unit_test_node_path();
+        if zk_conn.exists(&path, false).unwrap().is_none() {
+            match zk_conn.create(
+                &path,
+                vec![1, 2, 3],
+                zookeeper::Acl::open_unsafe().to_vec(),
+                zookeeper::CreateMode::Persistent,
+            ) {
+                Ok(_) => {}
+                Err(zookeeper::ZkError::NodeExists) => {}
+                Err(e) => panic!("{}", e),
+            }
+        }
+        path
+    }
+
     pub fn test_zookeeper_connection() -> ZooKeeper {
-        connect_to_zookeeper(&test_zookeeper_config())
+        connect_to_zookeeper(&test_pinot_cluster_zookeeper_config())
             .expect("Could not connect to test zookeeper instance")
     }
 
-    pub fn test_zookeeper_config() -> ZookeeperConfig {
+    pub fn test_pinot_cluster_zookeeper_config() -> ZookeeperConfig {
         ZookeeperConfig::new(
             vec!["localhost:2181".to_string()],
             "/PinotCluster".to_string(),
