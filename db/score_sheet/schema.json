@@ -2,20 +2,55 @@
   "schemaName": "scoreSheet",
   "dimensionFieldSpecs": [
     {
-      "name": "name",
+      "name": "handle",
       "dataType": "STRING"
+    },
+    {
+      "name": "names",
+      "dataType": "STRING",
+      "singleValueField": false
     },
     {
       "name": "age",
       "dataType": "INT"
+    },    
+    {
+      "name": "gameIds",
+      "dataType": "INT",
+      "singleValueField": false
     },
     {
       "name": "hasPlayed",
       "dataType": "BOOLEAN"
     },
     {
+      "name": "gamesWon",
+      "dataType": "BOOLEAN",
+      "singleValueField": false
+    },
+    {
       "name": "dateOfBirth",
       "dataType": "TIMESTAMP"
+    },
+    {
+      "name": "datesPlayed",
+      "dataType": "TIMESTAMP",
+      "singleValueField": false
+    },
+    {
+      "name": "scores",
+      "dataType": "LONG",
+      "singleValueField": false
+    },
+    {
+      "name": "handicapAdjustedScores",
+      "dataType": "FLOAT",
+      "singleValueField": false
+    },
+    {
+      "name": "handicapAdjustedScores_highPrecision",
+      "dataType": "FLOAT",
+      "singleValueField": false
     },
     {
       "name": "extra",
@@ -24,6 +59,11 @@
     {
       "name": "raw",
       "dataType": "BYTES"
+    },
+    {
+      "name": "rawArray",
+      "dataType": "BYTES",
+      "singleValueField": false
     }
   ],
   "metricFieldSpecs": [
