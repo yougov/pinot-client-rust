@@ -267,45 +267,83 @@ fn deserialize_data(
         DataType::Float => Data::Float(Deserialize::deserialize(raw_data)?),
         DataType::Double => Data::Double(Deserialize::deserialize(raw_data)?),
         DataType::Boolean => Data::Boolean(Deserialize::deserialize(raw_data)?),
-        DataType::Timestamp => {
-            Data::Timestamp(match raw_data {
-                Value::Number(number) => {
-                    let epoch = Duration::milliseconds(Deserialize::deserialize(number)?);
-                    let secs = epoch.num_seconds();
-                    let nsecs_i64 = epoch.num_nanoseconds().unwrap_or(0);
-                    let nsecs = u32::from_i64(nsecs_i64).unwrap_or(0);
-                    DateTime::from_utc(NaiveDateTime::from_timestamp(secs, nsecs), Utc)
-                }
-                Value::String(string) => {
-                    DateTime::from_utc(
-                        NaiveDateTime::parse_from_str(&string, "%Y-%m-%d %H:%M:%S.%f")
-                            .map_err(serde_json::Error::custom)?,
-                        Utc,
-                    )
-                }
-                variant => Deserialize::deserialize(variant)?,
-            })
-        }
+        DataType::Timestamp => Data::Timestamp(deserialize_timestamp(raw_data)?),
         DataType::String => Data::String(Deserialize::deserialize(raw_data)?),
-        DataType::Json => match raw_data {
-            Value::String(string) => {
-                let value: Value = serde_json::from_str(&string)?;
-                if value.is_null() {
-                    Data::Null(DataType::Json)
-                } else {
-                    Data::Json(value)
-                }
+        DataType::Json => {
+            let value = deserialize_json(raw_data)?;
+            if value.is_null() {
+                Data::Null(DataType::Json)
+            } else {
+                Data::Json(value)
             }
-            variant => Data::Json(Deserialize::deserialize(variant)?),
-        },
-        DataType::Bytes => {
-            Data::Bytes(match raw_data {
-                Value::String(data) => hex::decode(data).map_err(serde_json::Error::custom)?,
-                variant => Deserialize::deserialize(variant)?,
-            })
         }
+        DataType::Bytes => Data::Bytes(deserialize_bytes(raw_data)?),
+        DataType::IntArray => Data::IntArray(Deserialize::deserialize(raw_data)?),
+        DataType::LongArray => Data::LongArray(Deserialize::deserialize(raw_data)?),
+        DataType::FloatArray => Data::FloatArray(Deserialize::deserialize(raw_data)?),
+        DataType::DoubleArray => Data::DoubleArray(Deserialize::deserialize(raw_data)?),
+        DataType::BooleanArray => Data::BooleanArray(Deserialize::deserialize(raw_data)?),
+        DataType::TimestampArray => Data::TimestampArray(deserialize_timestamps(raw_data)?),
+        DataType::StringArray => Data::StringArray(Deserialize::deserialize(raw_data)?),
+        DataType::BytesArray => Data::BytesArray(deserialize_bytes_array(raw_data)?),
     };
     Ok(data)
+}
+
+fn deserialize_timestamps(
+    raw_data: Value
+) -> std::result::Result<Vec<DateTime<Utc>>, serde_json::Error> {
+    let raw_dates: Vec<Value> = Deserialize::deserialize(raw_data)?;
+    raw_dates
+        .into_iter()
+        .map(|raw_date| deserialize_timestamp(raw_date))
+        .collect()
+}
+
+fn deserialize_timestamp(raw_data: Value) -> std::result::Result<DateTime<Utc>, serde_json::Error> {
+    match raw_data {
+        Value::Number(number) => {
+            let epoch = Duration::milliseconds(Deserialize::deserialize(number)?);
+            let secs = epoch.num_seconds();
+            let nsecs_i64 = epoch.num_nanoseconds().unwrap_or(0);
+            let nsecs = u32::from_i64(nsecs_i64).unwrap_or(0);
+            Ok(DateTime::from_utc(NaiveDateTime::from_timestamp(secs, nsecs), Utc))
+        }
+        Value::String(string) => {
+            Ok(DateTime::from_utc(
+                NaiveDateTime::parse_from_str(&string, "%Y-%m-%d %H:%M:%S.%f")
+                    .map_err(serde_json::Error::custom)?,
+                Utc,
+            ))
+        }
+        variant => Deserialize::deserialize(variant),
+    }
+}
+
+fn deserialize_json(raw_data: Value) -> std::result::Result<Value, serde_json::Error> {
+    match raw_data {
+        Value::String(string) => {
+            serde_json::from_str(&string)
+        }
+        variant => Ok(variant),
+    }
+}
+
+fn deserialize_bytes_array(
+    raw_data: Value
+) -> std::result::Result<Vec<Vec<u8>>, serde_json::Error> {
+    let raw_values: Vec<Value> = Deserialize::deserialize(raw_data)?;
+    raw_values
+        .into_iter()
+        .map(|raw_value| deserialize_bytes(raw_value))
+        .collect()
+}
+
+fn deserialize_bytes(raw_data: Value) -> std::result::Result<Vec<u8>, serde_json::Error> {
+    match raw_data {
+        Value::String(data) => hex::decode(data).map_err(serde_json::Error::custom),
+        variant => Deserialize::deserialize(variant),
+    }
 }
 
 /// Pinot native types
@@ -320,6 +358,14 @@ pub enum DataType {
     String,
     Json,
     Bytes,
+    IntArray,
+    LongArray,
+    FloatArray,
+    DoubleArray,
+    BooleanArray,
+    TimestampArray,
+    StringArray,
+    BytesArray,
 }
 
 impl<'de> Deserialize<'de> for DataType {
@@ -338,6 +384,14 @@ impl<'de> Deserialize<'de> for DataType {
             "TIMESTAMP" => DataType::Timestamp,
             "JSON" => DataType::Json,
             "BYTES" => DataType::Bytes,
+            "INT_ARRAY" => DataType::IntArray,
+            "LONG_ARRAY" => DataType::LongArray,
+            "FLOAT_ARRAY" => DataType::FloatArray,
+            "DOUBLE_ARRAY" => DataType::DoubleArray,
+            "BOOLEAN_ARRAY" => DataType::BooleanArray,
+            "STRING_ARRAY" => DataType::StringArray,
+            "TIMESTAMP_ARRAY" => DataType::TimestampArray,
+            "BYTES_ARRAY" => DataType::BytesArray,
             variant => return Err(D::Error::unknown_variant(variant, &[
                 "INT", "LONG", "FLOAT", "DOUBLE", "BOOLEAN", "STRING", "TIMESTAMP", "JSON", "BYTES",
             ])),
@@ -447,6 +501,14 @@ pub enum Data {
     String(String),
     Json(Value),
     Bytes(Vec<u8>),
+    IntArray(Vec<i32>),
+    LongArray(Vec<i64>),
+    FloatArray(Vec<f32>),
+    DoubleArray(Vec<f64>),
+    BooleanArray(Vec<bool>),
+    TimestampArray(Vec<DateTime<Utc>>),
+    StringArray(Vec<String>),
+    BytesArray(Vec<Vec<u8>>),
     Null(DataType),
 }
 
@@ -462,6 +524,14 @@ impl Data {
             Self::String(_) => DataType::String,
             Self::Json(_) => DataType::Json,
             Self::Bytes(_) => DataType::Bytes,
+            Self::IntArray(_) => DataType::IntArray,
+            Self::LongArray(_) => DataType::LongArray,
+            Self::FloatArray(_) => DataType::FloatArray,
+            Self::DoubleArray(_) => DataType::DoubleArray,
+            Self::BooleanArray(_) => DataType::BooleanArray,
+            Self::TimestampArray(_) => DataType::TimestampArray,
+            Self::StringArray(_) => DataType::StringArray,
+            Self::BytesArray(_) => DataType::BytesArray,
             Self::Null(data_type) => data_type.clone(),
         }
     }
@@ -585,24 +655,40 @@ pub mod tests {
 
     use super::*;
     use super::Data::Boolean as BooD;
+    use super::Data::BooleanArray as BooAD;
     use super::Data::Bytes as BytD;
+    use super::Data::BytesArray as BytAD;
     use super::Data::Double as DubD;
+    use super::Data::DoubleArray as DubAD;
     use super::Data::Float as FltD;
+    use super::Data::FloatArray as FltAD;
     use super::Data::Int as IntD;
+    use super::Data::IntArray as IntAD;
     use super::Data::Json as JsnD;
     use super::Data::Long as LngD;
+    use super::Data::LongArray as LngAD;
     use super::Data::Null as NulD;
     use super::Data::String as StrD;
+    use super::Data::StringArray as StrAD;
     use super::Data::Timestamp as TimD;
+    use super::Data::TimestampArray as TimAD;
     use super::DataType::Boolean as BooT;
+    use super::DataType::BooleanArray as BooAT;
     use super::DataType::Bytes as BytT;
+    use super::DataType::BytesArray as BytAT;
     use super::DataType::Double as DubT;
+    use super::DataType::DoubleArray as DubAT;
     use super::DataType::Float as FltT;
+    use super::DataType::FloatArray as FltAT;
     use super::DataType::Int as IntT;
+    use super::DataType::IntArray as IntAT;
     use super::DataType::Json as JsnT;
     use super::DataType::Long as LngT;
+    use super::DataType::LongArray as LngAT;
     use super::DataType::String as StrT;
+    use super::DataType::StringArray as StrAT;
     use super::DataType::Timestamp as TimT;
+    use super::DataType::TimestampArray as TimAT;
 
     #[test]
     fn broker_response_deserialises_results_table_for_all_types_correctly() {
@@ -610,24 +696,32 @@ pub mod tests {
             "resultTable":{
                 "dataSchema":{
                     "columnDataTypes":[
-                        "STRING","INT","LONG","FLOAT","DOUBLE","BOOLEAN","TIMESTAMP","JSON","BYTES"
+                        "STRING_ARRAY","INT_ARRAY","TIMESTAMP_ARRAY","BOOLEAN_ARRAY","LONG_ARRAY",
+                        "FLOAT_ARRAY","DOUBLE_ARRAY","BYTES_ARRAY","STRING","INT","LONG","FLOAT",
+                        "DOUBLE","BOOLEAN","TIMESTAMP","JSON","BYTES"
                     ],
                     "columnNames":[
-                        "name","age","totalScore","avgScore","avgScore_highPrecision",
-                        "hasPlayed","dateOfBirth","extra","raw"
+                        "names","gameIds","datesPlayed","gamesWon","scores","handicapAdjustedScores",
+                        "handicapAdjustedScores_highPrecision","rawArray","handle","age","totalScore",
+                        "avgScore","avgScore_highPrecision","hasPlayed","dateOfBirth","extra","raw"
                     ]
                 },
                 "rows":[
-                    ["A",10,11,5,5.1,true,1293840000000i64,{"a": "b"},"ab"],
-                    ["B",21,45,20,20.1,true,"2011-01-01 00:00:00.0",{},[171]],
-                    ["C",26,2,2,2.1,true,0,"{\"a\": \"b\"}",[]],
-                    ["D",31,5,5,5.1,true,0,"\"a\"",[]],
-                    ["E",30,0,0,0,false,0,"null",[]],
-                    ["F",20,0,0,0,false,0,null,[]],
-                    ["G",10,0,0,0,null,0,"0",[]],
-                    ["H",46,122,28,28.1,true,0,{},[]],
-                    ["I",60,153,49,49.1,true,0,{},[]],
-                    ["J",60,153,37,37.1,true,0,{},[]]
+                    [
+                        ["A", "1"], [1, 2], [1577875528000i64, 1580553928000i64], [true, false],
+                        [3, 6], [2.1, 4.9], [2.15, 4.99], ["ab", "ab"], "A", 10, 9, 4.5, 4.55,
+                        true, 1293840000000i64, {"a": "b"}, "ab"
+                    ],
+                    [
+                        ["B", "2"], [1, 2], ["2020-01-01 10:45:28.0", "2020-02-01 10:45:28.0"],
+                        [true, false], [3, 6], [2.1, 4.9], [2.15, 4.99], ["cd", "ef"], "B", 10, 9,
+                        4.5, 4.55, true, "2011-01-01 00:00:00.0", "{\"a\": \"b\"}", [171]
+                    ],
+                    [[], [], [], [], [], [], [], [], "C", 0, 0,  0,  0, false, 0, "\"a\"", ""],
+                    [[], [], [], [], [], [], [], [], "D", 0, 0,  0,  0, false, 0, "0", []],
+                    [[], [], [], [], [], [], [], [], "E", 0, 0,  0,  0, false, 0, "null", []],
+                    [[], [], [], [], [], [], [], [], "F", 0, 0,  0,  0, false, 0, null, []],
+                    [[], [], [], [], [], [], [], [], "G", 0, 0,  0,  0, false, 0, {}, []]
                 ]
             },
             "exceptions": [],
@@ -655,31 +749,78 @@ pub mod tests {
             result_table: Some(ResultTable {
                 data_schema: RespSchema {
                     column_data_types: vec![
-                        StrT, IntT, LngT, FltT, DubT, BooT, TimT, JsnT, BytT,
+                        StrAT, IntAT, TimAT, BooAT, LngAT, FltAT, DubAT, BytAT, StrT, IntT, LngT,
+                        FltT, DubT, BooT, TimT, JsnT, BytT,
                     ],
                     column_name_to_index: BiMap::from_iter(vec![
-                        ("name".to_string(), 0),
-                        ("age".to_string(), 1),
-                        ("totalScore".to_string(), 2),
-                        ("avgScore".to_string(), 3),
-                        ("avgScore_highPrecision".to_string(), 4),
-                        ("hasPlayed".to_string(), 5),
-                        ("dateOfBirth".to_string(), 6),
-                        ("extra".to_string(), 7),
-                        ("raw".to_string(), 8),
+                        ("names".to_string(), 0),
+                        ("gameIds".to_string(), 1),
+                        ("datesPlayed".to_string(), 2),
+                        ("gamesWon".to_string(), 3),
+                        ("scores".to_string(), 4),
+                        ("handicapAdjustedScores".to_string(), 5),
+                        ("handicapAdjustedScores_highPrecision".to_string(), 6),
+                        ("rawArray".to_string(), 7),
+                        ("handle".to_string(), 8),
+                        ("age".to_string(), 9),
+                        ("totalScore".to_string(), 10),
+                        ("avgScore".to_string(), 11),
+                        ("avgScore_highPrecision".to_string(), 12),
+                        ("hasPlayed".to_string(), 13),
+                        ("dateOfBirth".to_string(), 14),
+                        ("extra".to_string(), 15),
+                        ("raw".to_string(), 16),
                     ]),
                 },
                 rows: DataRows::new(vec![
-                    vec![StrD("A".to_string()), IntD(10), LngD(11), FltD(5.0), DubD(5.1), BooD(true), TimD(date_time_2011_01_01t00_00_00z()), JsnD(json!({"a": "b"})), BytD(vec![171])],
-                    vec![StrD("B".to_string()), IntD(21), LngD(45), FltD(20.0), DubD(20.1), BooD(true), TimD(date_time_2011_01_01t00_00_00z()), JsnD(json!({})), BytD(vec![171])],
-                    vec![StrD("C".to_string()), IntD(26), LngD(2), FltD(2.0), DubD(2.1), BooD(true), TimD(epoch()), JsnD(json!({"a": "b"})), BytD(vec![])],
-                    vec![StrD("D".to_string()), IntD(31), LngD(5), FltD(5.0), DubD(5.1), BooD(true), TimD(epoch()), JsnD(json!("a")), BytD(vec![])],
-                    vec![StrD("E".to_string()), IntD(30), LngD(0), FltD(0.0), DubD(0.0), BooD(false), TimD(epoch()), NulD(JsnT), BytD(vec![])],
-                    vec![StrD("F".to_string()), IntD(20), LngD(0), FltD(0.0), DubD(0.0), BooD(false), TimD(epoch()), NulD(JsnT), BytD(vec![])],
-                    vec![StrD("G".to_string()), IntD(10), LngD(0), FltD(0.0), DubD(0.0), NulD(BooT), TimD(epoch()), JsnD(json!(0)), BytD(vec![])],
-                    vec![StrD("H".to_string()), IntD(46), LngD(122), FltD(28.0), DubD(28.1), BooD(true), TimD(epoch()), JsnD(json!({})), BytD(vec![])],
-                    vec![StrD("I".to_string()), IntD(60), LngD(153), FltD(49.0), DubD(49.1), BooD(true), TimD(epoch()), JsnD(json!({})), BytD(vec![])],
-                    vec![StrD("J".to_string()), IntD(60), LngD(153), FltD(37.0), DubD(37.1), BooD(true), TimD(epoch()), JsnD(json!({})), BytD(vec![])],
+                    vec![
+                        StrAD(to_string_vec(vec!["A", "1"])), IntAD(vec![1, 2]),
+                        TimAD(vec![date_time_2020_01_01t10_45_28z(), date_time_2020_02_01t10_45_28z()]),
+                        BooAD(vec![true, false]), LngAD(vec![3, 6]), FltAD(vec![2.1, 4.9]),
+                        DubAD(vec![2.15, 4.99]), BytAD(vec![vec![171], vec![171]]), StrD("A".to_string()),
+                        IntD(10), LngD(9), FltD(4.5), DubD(4.55), BooD(true),
+                        TimD(date_time_2011_01_01t00_00_00z()), JsnD(json!({"a": "b"})),
+                        BytD(vec![171]),
+                    ],
+                    vec![
+                        StrAD(to_string_vec(vec!["B", "2"])), IntAD(vec![1, 2]),
+                        TimAD(vec![date_time_2020_01_01t10_45_28z(), date_time_2020_02_01t10_45_28z()]),
+                        BooAD(vec![true, false]), LngAD(vec![3, 6]), FltAD(vec![2.1, 4.9]),
+                        DubAD(vec![2.15, 4.99]), BytAD(vec![vec![205], vec![239]]), StrD("B".to_string()),
+                        IntD(10), LngD(9), FltD(4.5), DubD(4.55), BooD(true),
+                        TimD(date_time_2011_01_01t00_00_00z()), JsnD(json!({"a": "b"})),
+                        BytD(vec![171]),
+                    ],
+                    vec![
+                        StrAD(vec![]), IntAD(vec![]), TimAD(vec![]), BooAD(vec![]), LngAD(vec![]),
+                        FltAD(vec![]), DubAD(vec![]), BytAD(vec![]), StrD("C".to_string()),
+                        IntD(0), LngD(0), FltD(0.0), DubD(0.0), BooD(false), TimD(epoch()),
+                        JsnD(json!("a")), BytD(vec![]),
+                    ],
+                    vec![
+                        StrAD(vec![]), IntAD(vec![]), TimAD(vec![]), BooAD(vec![]), LngAD(vec![]),
+                        FltAD(vec![]), DubAD(vec![]), BytAD(vec![]), StrD("D".to_string()),
+                        IntD(0), LngD(0), FltD(0.0), DubD(0.0), BooD(false), TimD(epoch()),
+                        JsnD(json!(0)), BytD(vec![]),
+                    ],
+                    vec![
+                        StrAD(vec![]), IntAD(vec![]), TimAD(vec![]), BooAD(vec![]), LngAD(vec![]),
+                        FltAD(vec![]), DubAD(vec![]), BytAD(vec![]), StrD("E".to_string()),
+                        IntD(0), LngD(0), FltD(0.0), DubD(0.0), BooD(false), TimD(epoch()),
+                        NulD(JsnT), BytD(vec![]),
+                    ],
+                    vec![
+                        StrAD(vec![]), IntAD(vec![]), TimAD(vec![]), BooAD(vec![]), LngAD(vec![]),
+                        FltAD(vec![]), DubAD(vec![]), BytAD(vec![]), StrD("F".to_string()),
+                        IntD(0), LngD(0), FltD(0.0), DubD(0.0), BooD(false), TimD(epoch()),
+                        NulD(JsnT), BytD(vec![]),
+                    ],
+                    vec![
+                        StrAD(vec![]), IntAD(vec![]), TimAD(vec![]), BooAD(vec![]), LngAD(vec![]),
+                        FltAD(vec![]), DubAD(vec![]), BytAD(vec![]), StrD("G".to_string()),
+                        IntD(0), LngD(0), FltD(0.0), DubD(0.0), BooD(false), TimD(epoch()),
+                        JsnD(json!({})), BytD(vec![]),
+                    ],
                 ]),
             }),
             exceptions: vec![],
@@ -1326,6 +1467,14 @@ pub mod tests {
 
     pub fn test_data_rows() -> DataRows {
         DataRows::new(vec![vec![LngD(97889), IntD(0)]])
+    }
+
+    fn date_time_2020_01_01t10_45_28z() -> DateTime<Utc> {
+        date_time_utc(2020, 1, 1, 10, 45, 28)
+    }
+
+    fn date_time_2020_02_01t10_45_28z() -> DateTime<Utc> {
+        date_time_utc(2020, 2, 1, 10, 45, 28)
     }
 
     fn date_time_2011_01_01t00_00_00z() -> DateTime<Utc> {

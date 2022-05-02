@@ -1,3 +1,3 @@
 names,gameIds,datesPlayed,gamesWon,scores,handicapAdjustedScores,handicapAdjustedScores_highPrecision,rawArray,handle,age,totalScore,avgScore,avgScore_highPrecision,hasPlayed,dateOfBirth,dateOfFirstGame,extra,raw
 ["James", "Smith"], [1, 2, 3], [1577875528000, 1580553928000, 1583059528000], [true, false, true], [3, 6, 2], [2.1, 4.9, 3.2], [2.15, 4.99, 3.21], [cd, ef], "Gladiator", 11, 11,  3.6,  3.66, true,  1293840000000, 1356998400000, {"a": "b"}, ab
-["Giles" "Richie"], [],        [],                                            [],                  [],        [],              [],                 [],       "Thrumbar",  30, 0,   0,    0,    false, 662688000000,  1420070400001, {},
+["Giles", "Richie"], [],        [],                                            [],                  [],        [],              [],                 [],       "Thrumbar",  30, 0,   0,    0,    false, 662688000000,  1420070400001, {},
