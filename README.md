@@ -83,7 +83,7 @@ Code snippet:
 fn main() {
     let client = pinot_client_rust::connection::client_from_broker_list(
         vec!["localhost:8099".to_string()], None).unwrap();
-    let broker_response = client.execute_sql(
+    let broker_response = client.execute_sql::<pinot_client_rust::response::data::DataRow>(
         "baseballStats",
         "select count(*) as cnt, sum(homeRuns) as sum_homeRuns from baseballStats group by teamID limit 10"
     ).unwrap();
@@ -99,21 +99,26 @@ fn main() {
 Response Format
 ---------------
 
-Query Response is defined as the struct of following:
+Query Responses are defined by one of two broker response structures.
+SQL queries return `SqlBrokerResponse`, whose generic parameter is supported by all structs implementing the 
+`FromRow` trait, whereas PQL queries return `PqlBrokerResponse`.
+`SqlBrokerResponse` contains a `ResultTable`, the holder for SQL query data, whereas `PqlBrokerResponse` contains 
+`AggregationResults` and `SelectionResults`, the holders for PQL query data.
+
+### PQL
+
+`PqlBrokerResponse` is defined as:
 
 ```rust
-/// BrokerResponse is the data structure for broker response.
+/// PqlBrokerResponse is the data structure for broker response to a PQL query.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
-pub struct BrokerResponse {
+pub struct PqlBrokerResponse {
     #[serde(default)]
     #[serde(rename(deserialize = "aggregationResults"))]
     pub aggregation_results: Vec<AggregationResult>,
     #[serde(default)]
     #[serde(rename(deserialize = "selectionResults"))]
     pub selection_results: Option<SelectionResults>,
-    #[serde(default)]
-    #[serde(rename(deserialize = "resultTable"))]
-    pub result_table: Option<ResultTable>,
     pub exceptions: Vec<Exception>,
     #[serde(default)]
     #[serde(rename(deserialize = "traceInfo"))]
@@ -147,18 +152,59 @@ pub struct BrokerResponse {
 }
 ```
 
-Note that `AggregationResults` and `SelectionResults` are holders for PQL queries.
+### SQL
 
-Meanwhile `ResultTable` is the holder for SQL queries.
+`SqlBrokerResponse` is defined as:
+
+```rust
+/// BrokerResponse is the data structure for a broker response to an SQL query.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct SqlBrokerResponse<T: FromRow> {
+    #[serde(default = "default_optional_result_table")]
+    #[serde(rename(deserialize = "resultTable"))]
+    #[serde(deserialize_with = "deserialize_optional_result_table")]
+    pub result_table: Option<ResultTable<T>>,
+    pub exceptions: Vec<Exception>,
+    #[serde(default)]
+    #[serde(rename(deserialize = "traceInfo"))]
+    pub trace_info: HashMap<String, String>,
+    #[serde(rename(deserialize = "numServersQueried"))]
+    pub num_servers_queried: i32,
+    #[serde(rename(deserialize = "numServersResponded"))]
+    pub num_servers_responded: i32,
+    #[serde(rename(deserialize = "numSegmentsQueried"))]
+    pub num_segments_queried: i32,
+    #[serde(rename(deserialize = "numSegmentsProcessed"))]
+    pub num_segments_processed: i32,
+    #[serde(rename(deserialize = "numSegmentsMatched"))]
+    pub num_segments_matched: i32,
+    #[serde(rename(deserialize = "numConsumingSegmentsQueried"))]
+    pub num_consuming_segments_queried: i32,
+    #[serde(rename(deserialize = "numDocsScanned"))]
+    pub num_docs_scanned: i64,
+    #[serde(rename(deserialize = "numEntriesScannedInFilter"))]
+    pub num_entries_scanned_in_filter: i64,
+    #[serde(rename(deserialize = "numEntriesScannedPostFilter"))]
+    pub num_entries_scanned_post_filter: i64,
+    #[serde(rename(deserialize = "numGroupsLimitReached"))]
+    pub num_groups_limit_reached: bool,
+    #[serde(rename(deserialize = "totalDocs"))]
+    pub total_docs: i64,
+    #[serde(rename(deserialize = "timeUsedMs"))]
+    pub time_used_ms: i32,
+    #[serde(rename(deserialize = "minConsumingFreshnessTimeMs"))]
+    pub min_consuming_freshness_time_ms: i64,
+}
+```
 
 `ResultTable` is defined as:
 
 ```rust
 /// ResultTable is the holder for SQL queries.
 #[derive(Clone, Debug, PartialEq)]
-pub struct ResultTable {
+pub struct ResultTable<T: FromRow> {
     data_schema: RespSchema,
-    rows: DataRows,
+    rows: Vec<T>,
 }
 ```
 
@@ -198,16 +244,39 @@ pub enum DataType {
     String,
     Json,
     Bytes,
+    IntArray,
+    LongArray,
+    FloatArray,
+    DoubleArray,
+    BooleanArray,
+    TimestampArray,
+    StringArray,
+    BytesArray,
 }
 ```
 
-`DataRows` is defined as:
+`FromRow` is defined as:
 
 ```rust
-/// A matrix of `Data`
+
+/// FromRow represents any structure which can deserialize
+/// the ResultTable.rows json field provided a `RespSchema`
+pub trait FromRow {
+    fn from_row(
+        data_schema: &RespSchema,
+        row: Vec<Value>,
+    ) -> std::result::Result<Self, serde_json::Error> where Self: Sized;
+}
+```
+
+In addition to being implemented by TODO, `FromRow` is also implemented by `DataRow`, 
+the default data container which is defined as:
+
+```rust
+/// A row of `Data`
 #[derive(Clone, Debug, PartialEq)]
-pub struct DataRows {
-    rows: Vec<Vec<Data>>,
+pub struct DataRow {
+    row: Vec<Data>,
 }
 ```
 
@@ -226,6 +295,14 @@ pub enum Data {
     String(String),
     Json(Value),
     Bytes(Vec<u8>),
+    IntArray(Vec<i32>),
+    LongArray(Vec<i64>),
+    FloatArray(Vec<f32>),
+    DoubleArray(Vec<f64>),
+    BooleanArray(Vec<bool>),
+    TimestampArray(Vec<DateTime<Utc>>),
+    StringArray(Vec<String>),
+    BytesArray(Vec<Vec<u8>>),
     Null(DataType),
 }
 ```
@@ -246,4 +323,4 @@ fn get_bytes(&self) -> Result<&Vec<u8>>;
 fn is_null(&self) -> bool;
 ```
 
-In addition to row count, `DataRows` also contains convenience counterparts to those above given a row and column index.
+In addition to row count, `DataRow` also contains convenience counterparts to those above given a column index.

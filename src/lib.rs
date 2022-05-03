@@ -60,7 +60,7 @@ let client = pinot_client_rust::connection::client_from_broker_list(
 ```rust
 let client = pinot_client_rust::connection::client_from_broker_list(
     vec!["localhost:8099".to_string()], None).unwrap();
-let broker_response = client.execute_sql(
+let broker_response = client.execute_sql::<pinot_client_rust::response::data::DataRow>(
     "baseballStats",
     "select count(*) as cnt, sum(homeRuns) as sum_homeRuns from baseballStats group by teamID limit 10"
 ).unwrap();

@@ -131,7 +131,7 @@ fn deserialize_data(
         DataType::Timestamp => Data::Timestamp(deserialize_timestamp(raw_data)?),
         DataType::String => Data::String(Deserialize::deserialize(raw_data)?),
         DataType::Json => {
-            let value: Value = Deserialize::deserialize(raw_data)?;
+            let value = deserialize_json(raw_data)?;
             if value.is_null() {
                 Data::Null(DataType::Json)
             } else {
@@ -177,6 +177,17 @@ fn deserialize_timestamp(raw_data: Value) -> std::result::Result<DateTime<Utc>, 
                 Utc,
             ))
         }
+        variant => Deserialize::deserialize(variant),
+    }
+}
+
+fn deserialize_json(raw_data: Value) -> std::result::Result<Value, serde_json::Error> {
+    match raw_data {
+        Value::String(string) => if string.is_empty() {
+            Ok(Value::String(string))
+        } else {
+            serde_json::from_str(&string)
+        },
         variant => Deserialize::deserialize(variant),
     }
 }
@@ -546,7 +557,7 @@ pub mod tests {
         let data_schema: RespSchema = RespSchema::new(
             vec![
                 JsnT, JsnT, JsnT, JsnT, JsnT, JsnT, JsnT,
-                JsnT, JsnT, JsnT, JsnT, JsnT, JsnT,
+                JsnT, JsnT, JsnT, JsnT, JsnT, JsnT, JsnT,
             ],
             BiMap::from_iter(vec![
                 ("objectLiteral".to_string(), 0),
@@ -560,23 +571,26 @@ pub mod tests {
                 ("string".to_string(), 8),
                 ("stringEmpty".to_string(), 9),
                 ("number".to_string(), 10),
-                ("nullLiteral".to_string(), 11),
-                ("nullString".to_string(), 12),
+                ("numberString".to_string(), 11),
+                ("nullLiteral".to_string(), 12),
+                ("nullString".to_string(), 13),
             ]),
         );
         let row: Vec<Value> = Deserialize::deserialize(json! {[
             json!({"a": "b"}), json!({}), json!("{\"a\": \"b\"}"),json!("{}"),
             json!([1, 2]), json!([]), json!("[1, 2]"), json!("[]"),
-            json!("a"), json!(""), json!(0), json!(null), json!("null"),
+            json!("\"a\""), json!(""),
+            json!(0), json!("0"),
+            json!(null), json!("null"),
         ]}).unwrap();
         let data_row = DataRow::from_row(&data_schema, row).unwrap();
         assert_eq!(data_row, DataRow::new(vec![
-            JsnD(json!({"a": "b"})), JsnD(json!({})), JsnD(Value::String("{\"a\": \"b\"}".to_string())),
-            JsnD(Value::String("{}".to_string())), JsnD(json!([1, 2])), JsnD(json!([])),
-            JsnD(Value::String("[1, 2]".to_string())), JsnD(Value::String("[]".to_string())),
+            JsnD(json!({"a": "b"})), JsnD(json!({})), JsnD(json!({"a": "b"})), JsnD(json!({})),
+            JsnD(json!([1, 2])), JsnD(json!([])), JsnD(json!([1, 2])), JsnD(json!([])),
             JsnD(Value::String("a".to_string())), JsnD(Value::String("".to_string())),
             JsnD(Value::Number(serde_json::Number::from(0))),
-            NulD(JsnT), JsnD(Value::String("null".to_string())),
+            JsnD(Value::Number(serde_json::Number::from(0))),
+            NulD(JsnT), NulD(JsnT),
         ]));
     }
 
