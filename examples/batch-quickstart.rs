@@ -1,4 +1,5 @@
-use pinot_client_rust::response::BrokerResponse;
+use pinot_client_rust::response::{PqlBrokerResponse, SqlBrokerResponse};
+use pinot_client_rust::response::data::DataRow;
 
 fn main() {
     let client = pinot_client_rust::connection::client_from_broker_list(
@@ -16,18 +17,18 @@ fn main() {
     for query in &pinot_queries {
         println!("\n---Trying to query Pinot: {}---", query);
         let broker_response = client.execute_sql(table, query).unwrap();
-        print_broker_resp(broker_response);
+        print_sql_broker_resp(broker_response);
     }
 
     println!("\n===Querying PQL===");
     for query in &pinot_queries {
         println!("\n---Trying to query Pinot: {}---", query);
         let broker_response = client.execute_pql(table, query).unwrap();
-        print_broker_resp(broker_response);
+        print_pql_broker_resp(broker_response);
     }
 }
 
-fn print_broker_resp(broker_resp: BrokerResponse) {
+fn print_sql_broker_resp(broker_resp: SqlBrokerResponse<DataRow>) {
     println!(
         "Query Stats: response time - {} ms, scanned docs - {}, total docs - {}",
         broker_resp.time_used_ms,
@@ -40,6 +41,19 @@ fn print_broker_resp(broker_resp: BrokerResponse) {
     }
     if let Some(result_table) = broker_resp.result_table {
         println!("Broker response table results: {:?}", result_table);
+        return;
+    }
+}
+
+fn print_pql_broker_resp(broker_resp: PqlBrokerResponse) {
+    println!(
+        "Query Stats: response time - {} ms, scanned docs - {}, total docs - {}",
+        broker_resp.time_used_ms,
+        broker_resp.num_docs_scanned,
+        broker_resp.total_docs,
+    );
+    if !broker_resp.exceptions.is_empty() {
+        println!("Broker response exceptions: {:?}", broker_resp.exceptions);
         return;
     }
     if !broker_resp.aggregation_results.is_empty() {

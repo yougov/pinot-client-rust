@@ -3,7 +3,8 @@ use serde_json::json;
 use crate::client_transport::ClientTransport;
 use crate::errors::{Error, Result};
 use crate::request::{QueryFormat, Request};
-use crate::response::BrokerResponse;
+use crate::response::pql::PqlBrokerResponse;
+use crate::response::sql::{FromRow, SqlBrokerResponse};
 
 /// An asynchronous json implementation of clientTransport
 pub struct JsonHttpClientTransport {
@@ -21,22 +22,47 @@ impl JsonHttpClientTransport {
 }
 
 impl ClientTransport for JsonHttpClientTransport {
-    fn execute(&self, broker_address: &str, query: Request) -> Result<BrokerResponse> {
-        let url = encode_query_address(broker_address, &query.query_format);
-        let json_value = json!(&query);
-        let extra_headers = self.header.clone();
-        let request = create_post_json_http_request(url, json_value, extra_headers, &self.client)
-            .map_err(|e| Error::InvalidRequest(query.clone(), e))?;
-        let response = self.client.execute(request)
-            .map_err(|e| Error::FailedRequest(query.clone(), e))?;
+    fn execute_sql<T: FromRow>(
+        &self, broker_address: &str, query: &str,
+    ) -> Result<SqlBrokerResponse<T>> {
+        let query = Request::new(QueryFormat::SQL, query);
+        let response = execute_blocking_http_request(
+            broker_address, &query, &self.header, &self.client,
+        )?;
+        let broker_response: SqlBrokerResponse<T> = response.json()
+            .map_err(|e| Error::FailedRequest(query, e))?;
+        Ok(broker_response)
+    }
 
-        if response.status() == reqwest::StatusCode::OK {
-            let broker_response: BrokerResponse = response.json()
-                .map_err(|e| Error::FailedRequest(query, e))?;
-            Ok(broker_response)
-        } else {
-            Err(Error::InvalidResponse(response))
-        }
+    fn execute_pql(&self, broker_address: &str, query: &str) -> Result<PqlBrokerResponse> {
+        let query = Request::new(QueryFormat::PQL, query);
+        let response = execute_blocking_http_request(
+            broker_address, &query, &self.header, &self.client,
+        )?;
+        let broker_response: PqlBrokerResponse = response.json()
+            .map_err(|e| Error::FailedRequest(query, e))?;
+        Ok(broker_response)
+    }
+}
+
+fn execute_blocking_http_request(
+    broker_address: &str,
+    query: &Request,
+    header: &http::HeaderMap,
+    client: &reqwest::blocking::Client,
+) -> Result<reqwest::blocking::Response> {
+    let url = encode_query_address(broker_address, &query.query_format);
+    let json_value = json!(&query);
+    let extra_headers = header.clone();
+    let request = create_post_json_http_request(url, json_value, extra_headers, client)
+        .map_err(|e| Error::InvalidRequest(query.clone(), e))?;
+    let response = client.execute(request)
+        .map_err(|e| Error::FailedRequest(query.clone(), e))?;
+
+    if response.status() == reqwest::StatusCode::OK {
+        Ok(response)
+    } else {
+        Err(Error::InvalidResponse(response))
     }
 }
 
@@ -76,8 +102,9 @@ mod test {
     use serde_json::Value;
 
     use crate::connection::tests::test_broker_localhost_8099;
-    use crate::response::{Data, SelectionResults};
-    use crate::response::tests::{test_broker_response, test_broker_response_json};
+    use crate::response::data::{Data, DataRow};
+    use crate::response::pql::SelectionResults;
+    use crate::response::tests::{test_broker_response_json, test_sql_broker_response};
     use crate::tests::{date_time_utc, to_string_vec};
 
     use super::*;
@@ -168,24 +195,23 @@ mod test {
             reqwest::blocking::Client::new(),
             HeaderMap::new(),
         );
-        let response = transport.execute(
-            &test_broker_localhost_8099(),
-            Request::new(QueryFormat::SQL, "SELECT * FROM scoreSheet"),
+        let response: SqlBrokerResponse<DataRow> = transport.execute_sql(
+            &test_broker_localhost_8099(), "SELECT * FROM scoreSheet",
         ).unwrap();
         let result_table = response.result_table.unwrap();
 
         let expected = test_database_score_sheet_data_rows_by_name();
-        assert_eq!(result_table.get_rows().get_row_count(), 2);
+        assert_eq!(result_table.get_row_count(), 2);
         assert_eq!(result_table.get_schema().get_column_count(), 10);
         for row_index in 0..2 {
             let name_column_index = result_table.get_schema().get_column_index("name").unwrap();
-            let row_name = result_table.get_rows().get_string(row_index, name_column_index).unwrap();
+            let row_name = result_table.get_row(row_index).unwrap().get_string(name_column_index).unwrap();
             let expected_row = expected.get(row_name).unwrap();
             for column_index in 0..10 {
                 let col_name = result_table.get_schema().get_column_name(column_index).unwrap();
                 let col_type = result_table.get_schema().get_column_data_type(column_index).unwrap();
                 let expected_data = expected_row.get(col_name).unwrap();
-                let data = result_table.get_rows().get_data(row_index, column_index).unwrap();
+                let data = result_table.get_row(row_index).unwrap().get_data(column_index).unwrap();
                 assert_eq!(data.data_type(), col_type);
                 assert_eq!(data, expected_data);
             }
@@ -198,9 +224,8 @@ mod test {
             reqwest::blocking::Client::new(),
             HeaderMap::new(),
         );
-        let response = transport.execute(
-            &test_broker_localhost_8099(),
-            Request::new(QueryFormat::PQL, "SELECT * FROM scoreSheet"),
+        let response = transport.execute_pql(
+            &test_broker_localhost_8099(), "SELECT * FROM scoreSheet",
         ).unwrap();
         let results = response.selection_results.unwrap();
         assert_eq!(results, SelectionResults::new(
@@ -224,13 +249,14 @@ mod test {
     }
 
     #[test]
-    fn execute_with_malformed_host_returns_error() {
+    fn execute_sql_with_malformed_host_returns_error() {
         let transport = JsonHttpClientTransport::new(
             reqwest::blocking::Client::new(),
             HeaderMap::new(),
         );
-        let request = Request::new(QueryFormat::SQL, "SELECT * FROM baseball_stats");
-        let error = transport.execute("localhost:abcd", request.clone()).unwrap_err();
+        let query = "SELECT * FROM baseball_stats";
+        let request = Request::new(QueryFormat::SQL, query);
+        let error = transport.execute_sql::<DataRow>("localhost:abcd", query).unwrap_err();
         match error {
             Error::InvalidRequest(captured_request, _) => assert_eq!(captured_request, request),
             _ => panic!("Incorrect error kind"),
@@ -238,13 +264,44 @@ mod test {
     }
 
     #[test]
-    fn execute_with_unknown_host_returns_error() {
+    fn execute_pql_with_malformed_host_returns_error() {
         let transport = JsonHttpClientTransport::new(
             reqwest::blocking::Client::new(),
             HeaderMap::new(),
         );
-        let request = Request::new(QueryFormat::SQL, "SELECT * FROM baseball_stats");
-        let error = transport.execute("unknownhost:8000", request.clone()).unwrap_err();
+        let query = "SELECT * FROM baseball_stats";
+        let request = Request::new(QueryFormat::PQL, query);
+        let error = transport.execute_pql("localhost:abcd", query).unwrap_err();
+        match error {
+            Error::InvalidRequest(captured_request, _) => assert_eq!(captured_request, request),
+            _ => panic!("Incorrect error kind"),
+        }
+    }
+
+    #[test]
+    fn execute_sql_with_unknown_host_returns_error() {
+        let transport = JsonHttpClientTransport::new(
+            reqwest::blocking::Client::new(),
+            HeaderMap::new(),
+        );
+        let query = "SELECT * FROM baseball_stats";
+        let request = Request::new(QueryFormat::SQL, query);
+        let error = transport.execute_sql::<DataRow>("unknownhost:8000", query).unwrap_err();
+        match error {
+            Error::FailedRequest(captured_request, _) => assert_eq!(captured_request, request),
+            _ => panic!("Incorrect error kind"),
+        }
+    }
+
+    #[test]
+    fn execute_pql_with_unknown_host_returns_error() {
+        let transport = JsonHttpClientTransport::new(
+            reqwest::blocking::Client::new(),
+            HeaderMap::new(),
+        );
+        let query = "SELECT * FROM baseball_stats";
+        let request = Request::new(QueryFormat::PQL, query);
+        let error = transport.execute_pql("unknownhost:8000", query).unwrap_err();
         match error {
             Error::FailedRequest(captured_request, _) => assert_eq!(captured_request, request),
             _ => panic!("Incorrect error kind"),
@@ -255,8 +312,9 @@ mod test {
     pub fn decode_response_decodes_valid_response() {
         let json: Value = test_broker_response_json();
         let response_bytes = serde_json::to_vec(&json).unwrap();
-        let broker_response: BrokerResponse = serde_json::from_slice(&response_bytes).unwrap();
-        assert_eq!(broker_response, test_broker_response());
+        let broker_response: SqlBrokerResponse<DataRow> = serde_json::from_slice(&response_bytes)
+            .unwrap();
+        assert_eq!(broker_response, test_sql_broker_response());
     }
 
     fn test_database_score_sheet_data_rows_by_name() -> HashMap<String, HashMap<String, Data>> {
