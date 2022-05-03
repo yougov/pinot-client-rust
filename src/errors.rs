@@ -34,7 +34,7 @@ pub enum Error {
     #[error("Failed connect to zookeeper: {0}")]
     FailedZookeeperConnection(#[from] ZkError),
 
-    /// Failure to execute a `Request`.
+    /// Request for incompatible data type.
     #[error("Requested result data of type {requested:?} as {actual:?}")]
     IncorrectResultDataType { requested: DataType, actual: DataType },
 

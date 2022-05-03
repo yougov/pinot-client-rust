@@ -5,8 +5,9 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::errors::{Error, Result};
+use crate::response::DataType;
 
-use super::sql::{DataType, FromRow, RespSchema};
+use super::sql::{FromRow, RespSchema};
 
 /// A row of `Data`
 #[derive(Clone, Debug, PartialEq)]

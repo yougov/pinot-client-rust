@@ -4,6 +4,7 @@ use crate::client_transport::ClientTransport;
 use crate::errors::{Error, Result};
 use crate::request::{QueryFormat, Request};
 use crate::response::pql::PqlBrokerResponse;
+use crate::response::raw::RawBrokerResponse;
 use crate::response::sql::{FromRow, SqlBrokerResponse};
 
 /// An asynchronous json implementation of clientTransport
@@ -29,9 +30,9 @@ impl ClientTransport for JsonHttpClientTransport {
         let response = execute_blocking_http_request(
             broker_address, &query, &self.header, &self.client,
         )?;
-        let broker_response: SqlBrokerResponse<T> = response.json()
+        let raw_broker_response: RawBrokerResponse = response.json()
             .map_err(|e| Error::FailedRequest(query, e))?;
-        Ok(broker_response)
+        Result::from(raw_broker_response)
     }
 
     fn execute_pql(&self, broker_address: &str, query: &str) -> Result<PqlBrokerResponse> {
@@ -39,9 +40,9 @@ impl ClientTransport for JsonHttpClientTransport {
         let response = execute_blocking_http_request(
             broker_address, &query, &self.header, &self.client,
         )?;
-        let broker_response: PqlBrokerResponse = response.json()
+        let raw_broker_response: RawBrokerResponse = response.json()
             .map_err(|e| Error::FailedRequest(query, e))?;
-        Ok(broker_response)
+        Ok(PqlBrokerResponse::from(raw_broker_response))
     }
 }
 
@@ -103,8 +104,7 @@ mod test {
 
     use crate::connection::tests::test_broker_localhost_8099;
     use crate::response::data::{Data, DataRow};
-    use crate::response::pql::SelectionResults;
-    use crate::response::tests::{test_broker_response_json, test_sql_broker_response};
+    use crate::response::raw::SelectionResults;
     use crate::tests::{date_time_utc, to_string_vec};
 
     use super::*;
@@ -306,15 +306,6 @@ mod test {
             Error::FailedRequest(captured_request, _) => assert_eq!(captured_request, request),
             _ => panic!("Incorrect error kind"),
         }
-    }
-
-    #[test]
-    pub fn decode_response_decodes_valid_response() {
-        let json: Value = test_broker_response_json();
-        let response_bytes = serde_json::to_vec(&json).unwrap();
-        let broker_response: SqlBrokerResponse<DataRow> = serde_json::from_slice(&response_bytes)
-            .unwrap();
-        assert_eq!(broker_response, test_sql_broker_response());
     }
 
     fn test_database_score_sheet_data_rows_by_name() -> HashMap<String, HashMap<String, Data>> {

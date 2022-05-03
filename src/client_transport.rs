@@ -14,6 +14,7 @@ pub trait ClientTransport {
 #[cfg(test)]
 pub mod tests {
     use serde_json::Value;
+    use crate::response::raw::RawBrokerResponse;
 
     use super::*;
 
@@ -40,8 +41,8 @@ pub mod tests {
             &self, broker_address: &str, query: &str,
         ) -> Result<SqlBrokerResponse<T>> {
             let json: Value = (self.sql_return_function)(broker_address, query)?;
-            let result: SqlBrokerResponse<T> = serde_json::from_value(json)?;
-            Ok(result)
+            let raw_broker_response: RawBrokerResponse = serde_json::from_value(json)?;
+            Result::from(raw_broker_response)
         }
 
         fn execute_pql(&self, broker_address: &str, query: &str) -> Result<PqlBrokerResponse> {

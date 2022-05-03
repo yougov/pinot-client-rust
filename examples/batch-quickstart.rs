@@ -1,4 +1,4 @@
-use pinot_client_rust::response::{PqlBrokerResponse, SqlBrokerResponse};
+use pinot_client_rust::response::{Exception, PqlBrokerResponse, ResponseStats, SqlBrokerResponse};
 use pinot_client_rust::response::data::DataRow;
 
 fn main() {
@@ -17,51 +17,51 @@ fn main() {
     for query in &pinot_queries {
         println!("\n---Trying to query Pinot: {}---", query);
         let broker_response = client.execute_sql(table, query).unwrap();
-        print_sql_broker_resp(broker_response);
+        print_sql_broker_resp(&broker_response);
     }
 
     println!("\n===Querying PQL===");
     for query in &pinot_queries {
         println!("\n---Trying to query Pinot: {}---", query);
         let broker_response = client.execute_pql(table, query).unwrap();
-        print_pql_broker_resp(broker_response);
+        print_pql_broker_resp(&broker_response);
     }
 }
 
-fn print_sql_broker_resp(broker_resp: SqlBrokerResponse<DataRow>) {
-    println!(
-        "Query Stats: response time - {} ms, scanned docs - {}, total docs - {}",
-        broker_resp.time_used_ms,
-        broker_resp.num_docs_scanned,
-        broker_resp.total_docs,
-    );
-    if !broker_resp.exceptions.is_empty() {
-        println!("Broker response exceptions: {:?}", broker_resp.exceptions);
-        return;
-    }
-    if let Some(result_table) = broker_resp.result_table {
+fn print_sql_broker_resp(broker_resp: &SqlBrokerResponse<DataRow>) {
+    print_resp_stats(&broker_resp.stats);
+    print_exceptions(&broker_resp.exceptions);
+    if let Some(result_table) = &broker_resp.result_table {
         println!("Broker response table results: {:?}", result_table);
         return;
     }
 }
 
-fn print_pql_broker_resp(broker_resp: PqlBrokerResponse) {
-    println!(
-        "Query Stats: response time - {} ms, scanned docs - {}, total docs - {}",
-        broker_resp.time_used_ms,
-        broker_resp.num_docs_scanned,
-        broker_resp.total_docs,
-    );
-    if !broker_resp.exceptions.is_empty() {
-        println!("Broker response exceptions: {:?}", broker_resp.exceptions);
-        return;
-    }
+fn print_pql_broker_resp(broker_resp: &PqlBrokerResponse) {
+    print_resp_stats(&broker_resp.stats);
+    print_exceptions(&broker_resp.exceptions);
     if !broker_resp.aggregation_results.is_empty() {
         println!("Broker response aggregation results: {:?}", broker_resp.aggregation_results);
         return;
     }
-    if let Some(selection_results) = broker_resp.selection_results {
+    if let Some(selection_results) = &broker_resp.selection_results {
         println!("Broker response selection results: {:?}", selection_results);
+        return;
+    }
+}
+
+fn print_resp_stats(stats: &ResponseStats) {
+    println!(
+        "Query Stats: response time - {} ms, scanned docs - {}, total docs - {}",
+        stats.time_used_ms,
+        stats.num_docs_scanned,
+        stats.total_docs,
+    );
+}
+
+fn print_exceptions(exceptions: &Vec<Exception>) {
+    if !exceptions.is_empty() {
+        println!("Broker response exceptions: {:?}", exceptions);
         return;
     }
 }

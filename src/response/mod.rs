@@ -1,12 +1,58 @@
+use std::collections::HashMap;
+
+use serde::de::Error as SerdeError;
 use serde::Deserialize;
 
 pub use pql::PqlBrokerResponse;
-pub use sql::DataType;
 pub use sql::SqlBrokerResponse;
 
-pub mod pql;
-pub mod sql;
 pub mod data;
+pub mod pql;
+pub mod raw;
+pub mod sql;
+mod deserialise;
+
+
+/// ResponseStats carries all stats returned by a query.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResponseStats {
+    pub trace_info: HashMap<String, String>,
+    pub num_servers_queried: i32,
+    pub num_servers_responded: i32,
+    pub num_segments_queried: i32,
+    pub num_segments_processed: i32,
+    pub num_segments_matched: i32,
+    pub num_consuming_segments_queried: i32,
+    pub num_docs_scanned: i64,
+    pub num_entries_scanned_in_filter: i64,
+    pub num_entries_scanned_post_filter: i64,
+    pub num_groups_limit_reached: bool,
+    pub total_docs: i64,
+    pub time_used_ms: i32,
+    pub min_consuming_freshness_time_ms: i64,
+}
+
+/// Pinot native types
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DataType {
+    Int,
+    Long,
+    Float,
+    Double,
+    Boolean,
+    Timestamp,
+    String,
+    Json,
+    Bytes,
+    IntArray,
+    LongArray,
+    FloatArray,
+    DoubleArray,
+    BooleanArray,
+    TimestampArray,
+    StringArray,
+    BytesArray,
+}
 
 /// Exception is Pinot exceptions.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
@@ -16,13 +62,45 @@ pub struct Exception {
     pub message: String,
 }
 
+impl<'de> Deserialize<'de> for DataType {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+    {
+        let data_type: String = Deserialize::deserialize(deserializer)?;
+        let data_type = match data_type.as_str() {
+            "INT" => DataType::Int,
+            "LONG" => DataType::Long,
+            "FLOAT" => DataType::Float,
+            "DOUBLE" => DataType::Double,
+            "BOOLEAN" => DataType::Boolean,
+            "STRING" => DataType::String,
+            "TIMESTAMP" => DataType::Timestamp,
+            "JSON" => DataType::Json,
+            "BYTES" => DataType::Bytes,
+            "INT_ARRAY" => DataType::IntArray,
+            "LONG_ARRAY" => DataType::LongArray,
+            "FLOAT_ARRAY" => DataType::FloatArray,
+            "DOUBLE_ARRAY" => DataType::DoubleArray,
+            "BOOLEAN_ARRAY" => DataType::BooleanArray,
+            "STRING_ARRAY" => DataType::StringArray,
+            "TIMESTAMP_ARRAY" => DataType::TimestampArray,
+            "BYTES_ARRAY" => DataType::BytesArray,
+            variant => return Err(D::Error::unknown_variant(variant, &[
+                "INT", "LONG", "FLOAT", "DOUBLE", "BOOLEAN", "STRING", "TIMESTAMP", "JSON", "BYTES",
+            ])),
+        };
+        Ok(data_type)
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use serde_json::{json, Value};
 
+    use crate::response::{PqlBrokerResponse, ResponseStats};
     use crate::response::data::DataRow;
-    use crate::response::pql::SelectionResults;
-    use crate::response::PqlBrokerResponse;
+    use crate::response::raw::SelectionResults;
     use crate::response::sql::SqlBrokerResponse;
     use crate::response::sql::tests::test_result_table;
     use crate::tests::to_string_vec;
@@ -105,20 +183,22 @@ pub mod tests {
         SqlBrokerResponse {
             result_table: Some(test_result_table()),
             exceptions: vec![],
-            trace_info: Default::default(),
-            num_servers_queried: 1,
-            num_servers_responded: 1,
-            num_segments_queried: 1,
-            num_segments_processed: 1,
-            num_segments_matched: 1,
-            num_consuming_segments_queried: 0,
-            num_docs_scanned: 97889,
-            num_entries_scanned_in_filter: 0,
-            num_entries_scanned_post_filter: 0,
-            num_groups_limit_reached: false,
-            total_docs: 97889,
-            time_used_ms: 5,
-            min_consuming_freshness_time_ms: 0,
+            stats: ResponseStats {
+                trace_info: Default::default(),
+                num_servers_queried: 1,
+                num_servers_responded: 1,
+                num_segments_queried: 1,
+                num_segments_processed: 1,
+                num_segments_matched: 1,
+                num_consuming_segments_queried: 0,
+                num_docs_scanned: 97889,
+                num_entries_scanned_in_filter: 0,
+                num_entries_scanned_post_filter: 0,
+                num_groups_limit_reached: false,
+                total_docs: 97889,
+                time_used_ms: 5,
+                min_consuming_freshness_time_ms: 0,
+            },
         }
     }
 
@@ -133,20 +213,22 @@ pub mod tests {
                 ]],
             )),
             exceptions: vec![],
-            trace_info: Default::default(),
-            num_servers_queried: 1,
-            num_servers_responded: 1,
-            num_segments_queried: 1,
-            num_segments_processed: 1,
-            num_segments_matched: 1,
-            num_consuming_segments_queried: 0,
-            num_docs_scanned: 97889,
-            num_entries_scanned_in_filter: 0,
-            num_entries_scanned_post_filter: 0,
-            num_groups_limit_reached: false,
-            total_docs: 97889,
-            time_used_ms: 5,
-            min_consuming_freshness_time_ms: 0,
+            stats: ResponseStats {
+                trace_info: Default::default(),
+                num_servers_queried: 1,
+                num_servers_responded: 1,
+                num_segments_queried: 1,
+                num_segments_processed: 1,
+                num_segments_matched: 1,
+                num_consuming_segments_queried: 0,
+                num_docs_scanned: 97889,
+                num_entries_scanned_in_filter: 0,
+                num_entries_scanned_post_filter: 0,
+                num_groups_limit_reached: false,
+                total_docs: 97889,
+                time_used_ms: 5,
+                min_consuming_freshness_time_ms: 0,
+            },
         }
     }
 }
