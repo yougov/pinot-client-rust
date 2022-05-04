@@ -103,7 +103,46 @@ Query Responses are defined by one of two broker response structures.
 SQL queries return `SqlBrokerResponse`, whose generic parameter is supported by all structs implementing the 
 `FromRow` trait, whereas PQL queries return `PqlBrokerResponse`.
 `SqlBrokerResponse` contains a `ResultTable`, the holder for SQL query data, whereas `PqlBrokerResponse` contains 
-`AggregationResults` and `SelectionResults`, the holders for PQL query data.
+`AggregationResults` and `SelectionResults`, the holders for PQL query data. 
+Exceptions for a given request for both `SqlBrokerResponse` and `PqlBrokerResponse` are stored in the `Exception` array.
+Stats for a given request for both `SqlBrokerResponse` and `PqlBrokerResponse` are stored in `ResponseStats`.
+
+### Common
+
+`Exception` is defined as:
+
+```rust
+/// Pinot exception.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+pub struct Exception {
+    #[serde(rename(deserialize = "errorCode"))]
+    pub error_code: i32,
+    pub message: String,
+}
+```
+
+`ResponseStats` is defined as:
+
+```rust
+/// ResponseStats carries all stats returned by a query.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResponseStats {
+    pub trace_info: HashMap<String, String>,
+    pub num_servers_queried: i32,
+    pub num_servers_responded: i32,
+    pub num_segments_queried: i32,
+    pub num_segments_processed: i32,
+    pub num_segments_matched: i32,
+    pub num_consuming_segments_queried: i32,
+    pub num_docs_scanned: i64,
+    pub num_entries_scanned_in_filter: i64,
+    pub num_entries_scanned_post_filter: i64,
+    pub num_groups_limit_reached: bool,
+    pub total_docs: i64,
+    pub time_used_ms: i32,
+    pub min_consuming_freshness_time_ms: i64,
+}
+```
 
 ### PQL
 
@@ -111,44 +150,12 @@ SQL queries return `SqlBrokerResponse`, whose generic parameter is supported by 
 
 ```rust
 /// PqlBrokerResponse is the data structure for broker response to a PQL query.
-#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PqlBrokerResponse {
-    #[serde(default)]
-    #[serde(rename(deserialize = "aggregationResults"))]
     pub aggregation_results: Vec<AggregationResult>,
-    #[serde(default)]
-    #[serde(rename(deserialize = "selectionResults"))]
     pub selection_results: Option<SelectionResults>,
     pub exceptions: Vec<Exception>,
-    #[serde(default)]
-    #[serde(rename(deserialize = "traceInfo"))]
-    pub trace_info: HashMap<String, String>,
-    #[serde(rename(deserialize = "numServersQueried"))]
-    pub num_servers_queried: i32,
-    #[serde(rename(deserialize = "numServersResponded"))]
-    pub num_servers_responded: i32,
-    #[serde(rename(deserialize = "numSegmentsQueried"))]
-    pub num_segments_queried: i32,
-    #[serde(rename(deserialize = "numSegmentsProcessed"))]
-    pub num_segments_processed: i32,
-    #[serde(rename(deserialize = "numSegmentsMatched"))]
-    pub num_segments_matched: i32,
-    #[serde(rename(deserialize = "numConsumingSegmentsQueried"))]
-    pub num_consuming_segments_queried: i32,
-    #[serde(rename(deserialize = "numDocsScanned"))]
-    pub num_docs_scanned: i64,
-    #[serde(rename(deserialize = "numEntriesScannedInFilter"))]
-    pub num_entries_scanned_in_filter: i64,
-    #[serde(rename(deserialize = "numEntriesScannedPostFilter"))]
-    pub num_entries_scanned_post_filter: i64,
-    #[serde(rename(deserialize = "numGroupsLimitReached"))]
-    pub num_groups_limit_reached: bool,
-    #[serde(rename(deserialize = "totalDocs"))]
-    pub total_docs: i64,
-    #[serde(rename(deserialize = "timeUsedMs"))]
-    pub time_used_ms: i32,
-    #[serde(rename(deserialize = "minConsumingFreshnessTimeMs"))]
-    pub min_consuming_freshness_time_ms: i64,
+    pub stats: ResponseStats,
 }
 ```
 
@@ -157,43 +164,12 @@ pub struct PqlBrokerResponse {
 `SqlBrokerResponse` is defined as:
 
 ```rust
-/// BrokerResponse is the data structure for a broker response to an SQL query.
-#[derive(Clone, Debug, Deserialize, PartialEq)]
+/// SqlBrokerResponse is the data structure for a broker response to an SQL query.
+#[derive(Clone, Debug, PartialEq)]
 pub struct SqlBrokerResponse<T: FromRow> {
-    #[serde(default = "default_optional_result_table")]
-    #[serde(rename(deserialize = "resultTable"))]
-    #[serde(deserialize_with = "deserialize_optional_result_table")]
     pub result_table: Option<ResultTable<T>>,
     pub exceptions: Vec<Exception>,
-    #[serde(default)]
-    #[serde(rename(deserialize = "traceInfo"))]
-    pub trace_info: HashMap<String, String>,
-    #[serde(rename(deserialize = "numServersQueried"))]
-    pub num_servers_queried: i32,
-    #[serde(rename(deserialize = "numServersResponded"))]
-    pub num_servers_responded: i32,
-    #[serde(rename(deserialize = "numSegmentsQueried"))]
-    pub num_segments_queried: i32,
-    #[serde(rename(deserialize = "numSegmentsProcessed"))]
-    pub num_segments_processed: i32,
-    #[serde(rename(deserialize = "numSegmentsMatched"))]
-    pub num_segments_matched: i32,
-    #[serde(rename(deserialize = "numConsumingSegmentsQueried"))]
-    pub num_consuming_segments_queried: i32,
-    #[serde(rename(deserialize = "numDocsScanned"))]
-    pub num_docs_scanned: i64,
-    #[serde(rename(deserialize = "numEntriesScannedInFilter"))]
-    pub num_entries_scanned_in_filter: i64,
-    #[serde(rename(deserialize = "numEntriesScannedPostFilter"))]
-    pub num_entries_scanned_post_filter: i64,
-    #[serde(rename(deserialize = "numGroupsLimitReached"))]
-    pub num_groups_limit_reached: bool,
-    #[serde(rename(deserialize = "totalDocs"))]
-    pub total_docs: i64,
-    #[serde(rename(deserialize = "timeUsedMs"))]
-    pub time_used_ms: i32,
-    #[serde(rename(deserialize = "minConsumingFreshnessTimeMs"))]
-    pub min_consuming_freshness_time_ms: i64,
+    pub stats: ResponseStats,
 }
 ```
 

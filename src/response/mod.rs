@@ -54,7 +54,7 @@ pub enum DataType {
     BytesArray,
 }
 
-/// Exception is Pinot exceptions.
+/// Pinot exception.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 pub struct Exception {
     #[serde(rename(deserialize = "errorCode"))]

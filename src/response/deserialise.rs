@@ -163,7 +163,7 @@ pub fn deserialize_json_from_json(raw_value: Value) -> Result<Value> {
 
 /// Cheap and probably inefficient means of arbitrary
 /// struct deserialization by making an intermediate
-/// json map for each row.
+/// json map for a row.
 impl<'de, T: Deserialize<'de>> FromRow for T {
     fn from_row(
         data_schema: &RespSchema,
