@@ -135,6 +135,18 @@ mod tests {
         )
     }
 
+    pub fn date_time_utc_milli(
+        year: u32, month: u32, day: u32, hour: u32, min: u32, sec: u32, milli: u32,
+    ) -> DateTime<Utc> {
+        DateTime::from_utc(
+            NaiveDateTime::parse_from_str(
+                &format!("{}-{}-{} {}:{}:{}.{}", year, month, day, hour, min, sec, milli),
+                "%Y-%m-%d %H:%M:%S%.f",
+            ).unwrap(),
+            Utc,
+        )
+    }
+
     pub fn to_string_vec(vec: Vec<&str>) -> Vec<String> {
         vec.into_iter().map(|e| e.to_string()).collect()
     }

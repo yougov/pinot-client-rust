@@ -1,11 +1,17 @@
-use chrono::{DateTime, Duration, NaiveDateTime, Utc};
-use num::cast::FromPrimitive;
+use chrono::{DateTime, Utc};
 use serde::de::Error as SerdeError;
 use serde::Deserialize;
 use serde_json::Value;
 
 use crate::errors::{Error, Result};
 use crate::response::DataType;
+use crate::response::deserialise::{
+    deserialize_bytes,
+    deserialize_bytes_array,
+    deserialize_json,
+    deserialize_timestamp,
+    deserialize_timestamps,
+};
 
 use super::sql::{FromRow, RespSchema};
 
@@ -111,6 +117,10 @@ fn deserialize_row(
                     column_index
                 )))?;
             deserialize_data(&data_type, raw_data)
+                .map_err(|e| SerdeError::custom(format!(
+                    "Issue encountered when deserializing value with column index {}: {}",
+                    column_index, e
+                )))
         })
         .collect::<std::result::Result<Vec<Data>, serde_json::Error>>()?;
     Ok(DataRow::new(row))
@@ -150,64 +160,6 @@ fn deserialize_data(
         DataType::BytesArray => Data::BytesArray(deserialize_bytes_array(raw_data)?),
     };
     Ok(data)
-}
-
-fn deserialize_timestamps(
-    raw_data: Value
-) -> std::result::Result<Vec<DateTime<Utc>>, serde_json::Error> {
-    let raw_dates: Vec<Value> = Deserialize::deserialize(raw_data)?;
-    raw_dates
-        .into_iter()
-        .map(|raw_date| deserialize_timestamp(raw_date))
-        .collect()
-}
-
-fn deserialize_timestamp(raw_data: Value) -> std::result::Result<DateTime<Utc>, serde_json::Error> {
-    match raw_data {
-        Value::Number(number) => {
-            let epoch = Duration::milliseconds(Deserialize::deserialize(number)?);
-            let secs = epoch.num_seconds();
-            let nsecs_i64 = epoch.num_nanoseconds().unwrap_or(0);
-            let nsecs = u32::from_i64(nsecs_i64).unwrap_or(0);
-            Ok(DateTime::from_utc(NaiveDateTime::from_timestamp(secs, nsecs), Utc))
-        }
-        Value::String(string) => {
-            Ok(DateTime::from_utc(
-                NaiveDateTime::parse_from_str(&string, "%Y-%m-%d %H:%M:%S.%f")
-                    .map_err(serde_json::Error::custom)?,
-                Utc,
-            ))
-        }
-        variant => Deserialize::deserialize(variant),
-    }
-}
-
-fn deserialize_json(raw_data: Value) -> std::result::Result<Value, serde_json::Error> {
-    match raw_data {
-        Value::String(string) => if string.is_empty() {
-            Ok(Value::String(string))
-        } else {
-            serde_json::from_str(&string)
-        },
-        variant => Deserialize::deserialize(variant),
-    }
-}
-
-fn deserialize_bytes_array(
-    raw_data: Value
-) -> std::result::Result<Vec<Vec<u8>>, serde_json::Error> {
-    let raw_values: Vec<Value> = Deserialize::deserialize(raw_data)?;
-    raw_values
-        .into_iter()
-        .map(|raw_value| deserialize_bytes(raw_value))
-        .collect()
-}
-
-fn deserialize_bytes(raw_data: Value) -> std::result::Result<Vec<u8>, serde_json::Error> {
-    match raw_data {
-        Value::String(data) => hex::decode(data).map_err(serde_json::Error::custom),
-        variant => Deserialize::deserialize(variant),
-    }
 }
 
 /// Typed Pinot data

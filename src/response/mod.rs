@@ -10,7 +10,7 @@ pub mod data;
 pub mod pql;
 pub mod raw;
 pub mod sql;
-mod deserialise;
+pub mod deserialise;
 
 
 /// ResponseStats carries all stats returned by a query.
