@@ -133,7 +133,7 @@ pub fn deserialize_bytes_from_json(raw_value: Value) -> Result<Vec<u8>> {
 }
 
 /// Deserializes json value potentially packaged into a string
-/// by calling `deserialize_json_from_json()`
+/// by calling `deserialize_json_from_json()`.
 pub fn deserialize_json<'de, D>(
     deserializer: D
 ) -> std::result::Result<Value, D::Error>

@@ -41,7 +41,7 @@ make prepare-pinot
 Build and run the example application to query from Pinot Batch Quickstart
 
 ```
-cargo run --example batch-quickstart
+cargo run --example deserialize-to-data-row
 ```
 
 Usage
@@ -76,7 +76,7 @@ let client = pinot_client_rust::connection::client_from_broker_list(
 Query Pinot
 -----------
 
-Please see this [example](https://github.com/yougov/pinot-client-rust/blob/master/examples/batch-quickstart.rs) for your reference.
+Please see this [example](https://github.com/yougov/pinot-client-rust/blob/master/examples/deserialize-to-data-row.rs) for your reference.
 
 Code snippet:
 ```rust
@@ -258,19 +258,41 @@ pub enum DataType {
 `FromRow` is defined as:
 
 ```rust
-
 /// FromRow represents any structure which can deserialize
 /// the ResultTable.rows json field provided a `RespSchema`
-pub trait FromRow {
+pub trait FromRow: Sized {
     fn from_row(
         data_schema: &RespSchema,
         row: Vec<Value>,
-    ) -> std::result::Result<Self, serde_json::Error> where Self: Sized;
+    ) -> std::result::Result<Self, serde_json::Error>;
 }
 ```
 
-In addition to being implemented by TODO, `FromRow` is also implemented by `DataRow`, 
-the default data container which is defined as:
+In addition to being implemented by `DataRow`, `FromRow` is also implemented by all implementors
+of `serde::de::Deserialize`, which is achieved by first deserializing the response to json and then 
+before each row is deserialized into final form, a json map of column name to value is substituted.
+Additionally, there are a number of serde deserializer functions provided to deserialize complex pinot types:
+
+```
+/// Converts Pinot timestamps into `Vec<DateTime<Utc>>` using `deserialize_timestamps_from_json()`.
+fn deserialize_timestamps<'de, D>(deserializer: D) -> std::result::Result<Vec<DateTime<Utc>>, D::Error>...
+
+/// Converts Pinot timestamps into `DateTime<Utc>` using `deserialize_timestamp_from_json()`.
+pub fn deserialize_timestamp<'de, D>(deserializer: D) -> std::result::Result<DateTime<Utc>, D::Error>...
+
+/// Converts Pinot hex strings into `Vec<Vec<u8>>` using `deserialize_bytes_array_from_json()`.
+pub fn deserialize_bytes_array<'de, D>(deserializer: D) -> std::result::Result<Vec<Vec<u8>>, D::Error>...
+
+/// Converts Pinot hex string into `Vec<u8>` using `deserialize_bytes_from_json()`.
+pub fn deserialize_bytes<'de, D>(deserializer: D) -> std::result::Result<Vec<u8>, D::Error>...
+
+/// Deserializes json potentially packaged into a string by calling `deserialize_json_from_json()`.
+pub fn deserialize_json<'de, D>(deserializer: D) -> std::result::Result<Value, D::Error>
+```
+
+For example usage, please refer to this [example](https://github.com/yougov/pinot-client-rust/blob/master/examples/deserialize-to-struct.rs) 
+
+`DataRow` is defined as:
 
 ```rust
 /// A row of `Data`
