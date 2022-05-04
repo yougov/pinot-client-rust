@@ -6,11 +6,11 @@ use serde_json::Value;
 use crate::errors::{Error, Result};
 use crate::response::DataType;
 use crate::response::deserialise::{
-    deserialize_bytes,
-    deserialize_bytes_array,
-    deserialize_json,
-    deserialize_timestamp,
-    deserialize_timestamps,
+    deserialize_bytes_array_from_json,
+    deserialize_bytes_from_json,
+    deserialize_json_from_json,
+    deserialize_timestamp_from_json,
+    deserialize_timestamps_from_json,
 };
 
 use super::sql::{FromRow, RespSchema};
@@ -139,25 +139,25 @@ fn deserialize_data(
         DataType::Float => Data::Float(Deserialize::deserialize(raw_data)?),
         DataType::Double => Data::Double(Deserialize::deserialize(raw_data)?),
         DataType::Boolean => Data::Boolean(Deserialize::deserialize(raw_data)?),
-        DataType::Timestamp => Data::Timestamp(deserialize_timestamp(raw_data)?),
+        DataType::Timestamp => Data::Timestamp(deserialize_timestamp_from_json(raw_data)?),
         DataType::String => Data::String(Deserialize::deserialize(raw_data)?),
+        DataType::Bytes => Data::Bytes(deserialize_bytes_from_json(raw_data)?),
+        DataType::IntArray => Data::IntArray(Deserialize::deserialize(raw_data)?),
+        DataType::LongArray => Data::LongArray(Deserialize::deserialize(raw_data)?),
+        DataType::FloatArray => Data::FloatArray(Deserialize::deserialize(raw_data)?),
+        DataType::DoubleArray => Data::DoubleArray(Deserialize::deserialize(raw_data)?),
+        DataType::BooleanArray => Data::BooleanArray(Deserialize::deserialize(raw_data)?),
+        DataType::TimestampArray => Data::TimestampArray(deserialize_timestamps_from_json(raw_data)?),
+        DataType::StringArray => Data::StringArray(Deserialize::deserialize(raw_data)?),
+        DataType::BytesArray => Data::BytesArray(deserialize_bytes_array_from_json(raw_data)?),
         DataType::Json => {
-            let value = deserialize_json(raw_data)?;
+            let value = deserialize_json_from_json(raw_data)?;
             if value.is_null() {
                 Data::Null(DataType::Json)
             } else {
                 Data::Json(value)
             }
         }
-        DataType::Bytes => Data::Bytes(deserialize_bytes(raw_data)?),
-        DataType::IntArray => Data::IntArray(Deserialize::deserialize(raw_data)?),
-        DataType::LongArray => Data::LongArray(Deserialize::deserialize(raw_data)?),
-        DataType::FloatArray => Data::FloatArray(Deserialize::deserialize(raw_data)?),
-        DataType::DoubleArray => Data::DoubleArray(Deserialize::deserialize(raw_data)?),
-        DataType::BooleanArray => Data::BooleanArray(Deserialize::deserialize(raw_data)?),
-        DataType::TimestampArray => Data::TimestampArray(deserialize_timestamps(raw_data)?),
-        DataType::StringArray => Data::StringArray(Deserialize::deserialize(raw_data)?),
-        DataType::BytesArray => Data::BytesArray(deserialize_bytes_array(raw_data)?),
     };
     Ok(data)
 }

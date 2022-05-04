@@ -32,20 +32,42 @@ pub fn sanitize_json_value(
         DataType::TimestampArray => format_string_timestamps_rfc3339(raw_value)?,
         DataType::Bytes => decode_and_repack_hex_string(raw_value)?,
         DataType::BytesArray => decode_and_repack_hex_strings(raw_value)?,
-        DataType::Json => deserialize_json(raw_value)?,
+        DataType::Json => deserialize_json_from_json(raw_value)?,
         _ => raw_value,
     };
     Ok(value)
 }
 
-/// Converts Pinot timestamps into `Vec<DateTime<Utc>>` using `deserialize_timestamp`.
-pub fn deserialize_timestamps(
+/// Converts Pinot timestamps into `Vec<DateTime<Utc>>` using `deserialize_timestamps_from_json()`.
+pub fn deserialize_timestamps<'de, D>(
+    deserializer: D
+) -> std::result::Result<Vec<DateTime<Utc>>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+{
+    deserialize_timestamps_from_json(Deserialize::deserialize(deserializer)?)
+        .map_err(D::Error::custom)
+}
+
+/// Converts Pinot timestamps into `DateTime<Utc>` using `deserialize_timestamp_from_json()`.
+pub fn deserialize_timestamp<'de, D>(
+    deserializer: D
+) -> std::result::Result<DateTime<Utc>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+{
+    let raw_date: Value = Deserialize::deserialize(deserializer)?;
+    deserialize_timestamp_from_json(raw_date).map_err(D::Error::custom)
+}
+
+/// Converts Pinot timestamps into `Vec<DateTime<Utc>>` using `deserialize_timestamp_from_json()`.
+pub fn deserialize_timestamps_from_json(
     raw_value: Value
 ) -> Result<Vec<DateTime<Utc>>> {
     let raw_dates: Vec<Value> = Deserialize::deserialize(raw_value)?;
     raw_dates
         .into_iter()
-        .map(|raw_date| deserialize_timestamp(raw_date))
+        .map(|raw_date| deserialize_timestamp_from_json(raw_date))
         .collect()
 }
 
@@ -57,8 +79,8 @@ pub fn deserialize_timestamps(
 /// epoch values.
 ///
 /// Timestamps which are returned as json numbers are assumed to be millisecond epoch values.
-pub fn deserialize_timestamp(raw_data: Value) -> Result<DateTime<Utc>> {
-    match raw_data {
+pub fn deserialize_timestamp_from_json(raw_value: Value) -> Result<DateTime<Utc>> {
+    match raw_value {
         Value::Number(number) => ts_milliseconds::deserialize(number),
         Value::String(string) => DateTime::deserialize(
             format_string_timestamp_rfc3339(Value::String(string))),
@@ -66,14 +88,36 @@ pub fn deserialize_timestamp(raw_data: Value) -> Result<DateTime<Utc>> {
     }
 }
 
-/// Converts Pinot bytes array into `Vec<Vec<u8>>` using `deserialize_bytes`.
-pub fn deserialize_bytes_array(
+/// Converts Pinot bytes array into `Vec<Vec<u8>>` using `deserialize_bytes_array_from_json()`.
+pub fn deserialize_bytes_array<'de, D>(
+    deserializer: D
+) -> std::result::Result<Vec<Vec<u8>>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+{
+    let raw_value: Value = Deserialize::deserialize(deserializer)?;
+    deserialize_bytes_array_from_json(raw_value).map_err(D::Error::custom)
+}
+
+/// Converts Pinot bytes into `Vec<u8>` using `deserialize_bytes_from_json()`.
+pub fn deserialize_bytes<'de, D>(
+    deserializer: D
+) -> std::result::Result<Vec<u8>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+{
+    let raw_value: Value = Deserialize::deserialize(deserializer)?;
+    deserialize_bytes_from_json(raw_value).map_err(D::Error::custom)
+}
+
+/// Converts Pinot bytes array into `Vec<Vec<u8>>` using `deserialize_bytes_array_from_json()`.
+pub fn deserialize_bytes_array_from_json(
     raw_data: Value
 ) -> Result<Vec<Vec<u8>>> {
     let raw_values: Vec<Value> = Deserialize::deserialize(raw_data)?;
     raw_values
         .into_iter()
-        .map(|raw_value| deserialize_bytes(raw_value))
+        .map(|raw_value| deserialize_bytes_from_json(raw_value))
         .collect()
 }
 
@@ -81,11 +125,23 @@ pub fn deserialize_bytes_array(
 ///
 /// Bytes values which are returned as json strings, which are assumed to be in hex string format,
 /// are decoded into `Vec<u8>` and then repackaged into a json array.
-pub fn deserialize_bytes(raw_data: Value) -> Result<Vec<u8>> {
-    match raw_data {
+pub fn deserialize_bytes_from_json(raw_value: Value) -> Result<Vec<u8>> {
+    match raw_value {
         Value::String(data) => decode_hex_string(data),
         variant => Deserialize::deserialize(variant),
     }
+}
+
+/// Deserializes json value potentially packaged into a string
+/// by calling `deserialize_json_from_json()`
+pub fn deserialize_json<'de, D>(
+    deserializer: D
+) -> std::result::Result<Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+{
+    let raw_value: Value = Deserialize::deserialize(deserializer)?;
+    deserialize_json_from_json(raw_value).map_err(D::Error::custom)
 }
 
 /// Deserializes json value potentially packaged into a string.
@@ -94,7 +150,7 @@ pub fn deserialize_bytes(raw_data: Value) -> Result<Vec<u8>> {
 /// Json values which are returned as non-empty json strings are deserialized into json objects.
 /// Empty strings are returned as json strings.
 /// All other json types return as are.
-pub fn deserialize_json(raw_value: Value) -> Result<Value> {
+pub fn deserialize_json_from_json(raw_value: Value) -> Result<Value> {
     match raw_value {
         Value::String(string) => if string.is_empty() {
             Ok(Value::String(string))
@@ -123,29 +179,15 @@ fn vec_row_to_json_map(
     vec_row: Vec<Value>,
 ) -> Result<Value> {
     let mut map_row: serde_json::Map<String, Value> = serde_json::Map::with_capacity(vec_row.len());
-    for (column_index, raw_value) in vec_row.into_iter().enumerate() {
-        let (column_name, data_type) = get_col_name_and_type(data_schema, column_index)
+    for (column_index, value) in vec_row.into_iter().enumerate() {
+        let column_name = data_schema.get_column_name(column_index)
             .map_err(|_| serde_json::Error::custom(format!(
-                "column index of {} not found in data schema when deserializing rows",
+                "Column index of {} not found in data schema when deserializing rows",
                 column_index
-            )))?;
-        let value = sanitize_json_value(&data_type, raw_value)
-            .map_err(|e| SerdeError::custom(format!(
-                "Issue encountered when deserializing value with column index {}: {}",
-                column_index, e
             )))?;
         map_row.insert(column_name.to_string(), value);
     }
     Ok(Value::Object(map_row))
-}
-
-fn get_col_name_and_type(
-    data_schema: &RespSchema,
-    column_index: usize,
-) -> crate::errors::Result<(&str, DataType)> {
-    let column_name = data_schema.get_column_name(column_index)?;
-    let data_type = data_schema.get_column_data_type(column_index)?;
-    Ok((column_name, data_type))
 }
 
 fn format_string_timestamps_rfc3339(raw_value: Value) -> Result<Value> {
@@ -443,26 +485,11 @@ pub mod tests {
 
     #[test]
     fn pinot_row_deserializable_to_struct_for_epoach_timestamp_fields() {
-        use chrono::serde::ts_milliseconds;
-
-        fn deserialize_milli_array<'de, D>(
-            deserializer: D
-        ) -> std::result::Result<Vec<DateTime<Utc>>, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-        {
-            let raw_dates: Vec<Value> = Deserialize::deserialize(deserializer)?;
-            raw_dates
-                .into_iter()
-                .map(|raw_date| ts_milliseconds::deserialize(raw_date).map_err(D::Error::custom))
-                .collect()
-        }
-
         #[derive(Deserialize, PartialEq, Debug)]
         struct TestRow {
-            #[serde(with = "ts_milliseconds")]
+            #[serde(deserialize_with = "deserialize_timestamp")]
             v_timestamp: DateTime<Utc>,
-            #[serde(deserialize_with = "deserialize_milli_array")]
+            #[serde(deserialize_with = "deserialize_timestamps")]
             v_timestamps: Vec<DateTime<Utc>>,
         }
         let data_schema = RespSchema::from(RawRespSchema {
@@ -486,26 +513,34 @@ pub mod tests {
     fn pinot_row_deserializable_to_struct_for_string_timestamp_fields() {
         #[derive(Deserialize, PartialEq, Debug)]
         struct TestRow {
+            #[serde(deserialize_with = "deserialize_timestamp")]
             v_timestamp_from_string: DateTime<Utc>,
+            v_timestamp_as_string: String,
+            #[serde(deserialize_with = "deserialize_timestamps")]
             v_timestamps_from_strings: Vec<DateTime<Utc>>,
+            v_timestamps_as_strings: Vec<String>,
         }
         let data_schema = RespSchema::from(RawRespSchema {
-            column_data_types: vec![TimT, TimAT],
+            column_data_types: vec![TimT, TimT, TimAT, TimAT],
             column_names: to_string_vec(vec![
-                "v_timestamp_from_string", "v_timestamps_from_strings",
+                "v_timestamp_from_string", "v_timestamp_as_string",
+                "v_timestamps_from_strings", "v_timestamps_as_strings",
             ]),
         });
         let values = vec![
-            json!("1949-10-02 10:11:49.1234"),
+            json!("1949-10-02 10:11:49.1234"), json!("1949-10-02 10:11:49.1234"),
+            json!(["1949-10-02 10:11:49.1234", "2020-01-01 10:45:28.0"]),
             json!(["1949-10-02 10:11:49.1234", "2020-01-01 10:45:28.0"]),
         ];
         let test_row = TestRow::from_row(&data_schema, values).unwrap();
         assert_eq!(test_row, TestRow {
             v_timestamp_from_string: date_time_utc_milli(1949, 10, 2, 10, 11, 49, 1234),
+            v_timestamp_as_string: "1949-10-02 10:11:49.1234".to_string(),
             v_timestamps_from_strings: vec![
                 date_time_utc_milli(1949, 10, 2, 10, 11, 49, 1234),
                 date_time_utc_milli(2020, 1, 1, 10, 45, 28, 0),
             ],
+            v_timestamps_as_strings: to_string_vec(vec!["1949-10-02 10:11:49.1234", "2020-01-01 10:45:28.0"]),
         });
     }
 
@@ -513,34 +548,47 @@ pub mod tests {
     fn pinot_row_deserializable_to_struct_for_bytes_fields() {
         #[derive(Deserialize, PartialEq, Debug)]
         struct TestRow {
+            #[serde(deserialize_with = "deserialize_bytes")]
             v_bytes: Vec<u8>,
+            v_hex: String,
+            #[serde(deserialize_with = "deserialize_bytes_array")]
             v_bytes_arr: Vec<Vec<u8>>,
+            v_hex_arr: Vec<String>,
         }
         let data_schema = RespSchema::from(RawRespSchema {
-            column_data_types: vec![BytT, BytAT],
-            column_names: to_string_vec(vec!["v_bytes", "v_bytes_arr"]),
+            column_data_types: vec![BytT, BytT, BytAT, BytAT],
+            column_names: to_string_vec(vec!["v_bytes", "v_hex", "v_bytes_arr", "v_hex_arr"]),
         });
-        let values = vec![json!("ab"), json!(["ab", [171]])];
+        let values = vec![json!("ab"), json!("ab"), json!(["ab", [171]]), json!(["ab"])];
         let test_row = TestRow::from_row(&data_schema, values).unwrap();
-        assert_eq!(test_row, TestRow { v_bytes: vec![171], v_bytes_arr: vec![vec![171], vec![171]] });
+        assert_eq!(test_row, TestRow {
+            v_bytes: vec![171],
+            v_hex: "ab".to_string(),
+            v_bytes_arr: vec![vec![171], vec![171]],
+            v_hex_arr: to_string_vec(vec!["ab"]),
+        });
     }
 
     #[test]
     fn pinot_row_deserializable_to_struct_for_json_fields() {
         #[derive(Deserialize, PartialEq, Debug)]
         struct TestRow {
+            #[serde(deserialize_with = "deserialize_json")]
             v_json: Value,
+            #[serde(deserialize_with = "deserialize_json")]
             v_json_from_string: Value,
+            v_json_as_string: String,
         }
         let data_schema = RespSchema::from(RawRespSchema {
-            column_data_types: vec![JsnT, JsnT],
-            column_names: to_string_vec(vec!["v_json", "v_json_from_string"]),
+            column_data_types: vec![JsnT, JsnT, JsnT],
+            column_names: to_string_vec(vec!["v_json", "v_json_from_string", "v_json_as_string"]),
         });
-        let values = vec![json!({"a": "b"}), json!("{\"a\": \"b\"}")];
+        let values = vec![json!({"a": "b"}), json!("{\"a\": \"b\"}"), json!("{\"a\": \"b\"}")];
         let test_row = TestRow::from_row(&data_schema, values).unwrap();
         assert_eq!(test_row, TestRow {
             v_json: json!({"a": "b"}),
             v_json_from_string: json!({"a": "b"}),
+            v_json_as_string: "{\"a\": \"b\"}".to_string(),
         });
     }
 }
