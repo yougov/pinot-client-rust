@@ -89,9 +89,9 @@ fn main() {
     ).unwrap();
     log::info!(
         "Query Stats: response time - {} ms, scanned docs - {}, total docs - {}",
-        broker_response.time_used_ms,
-        broker_response.num_docs_scanned,
-        broker_response.total_docs,
+        broker_response.stats.time_used_ms,
+        broker_response.stats.num_docs_scanned,
+        broker_response.stats.total_docs,
     );
 }
 ```

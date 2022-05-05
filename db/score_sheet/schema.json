@@ -24,18 +24,8 @@
       "dataType": "BOOLEAN"
     },
     {
-      "name": "gamesWon",
-      "dataType": "BOOLEAN",
-      "singleValueField": false
-    },
-    {
       "name": "dateOfBirth",
       "dataType": "TIMESTAMP"
-    },
-    {
-      "name": "datesPlayed",
-      "dataType": "TIMESTAMP",
-      "singleValueField": false
     },
     {
       "name": "scores",
@@ -49,7 +39,7 @@
     },
     {
       "name": "handicapAdjustedScores_highPrecision",
-      "dataType": "FLOAT",
+      "dataType": "DOUBLE",
       "singleValueField": false
     },
     {
@@ -59,11 +49,6 @@
     {
       "name": "raw",
       "dataType": "BYTES"
-    },
-    {
-      "name": "rawArray",
-      "dataType": "BYTES",
-      "singleValueField": false
     }
   ],
   "metricFieldSpecs": [

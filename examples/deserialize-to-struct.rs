@@ -4,11 +4,7 @@ use serde_json::Value;
 
 use pinot_client_rust::response::{Exception, PqlBrokerResponse, ResponseStats, SqlBrokerResponse};
 use pinot_client_rust::response::deserialise::{
-    deserialize_bytes,
-    deserialize_bytes_array,
     deserialize_json,
-    deserialize_timestamp,
-    deserialize_timestamps,
 };
 
 #[derive(PartialEq, Debug, Deserialize)]
@@ -16,19 +12,11 @@ struct Row {
     names: Vec<String>,
     #[serde(rename(deserialize = "gameIds"))]
     game_ids: Vec<i32>,
-    #[serde(rename(deserialize = "datesPlayed"))]
-    #[serde(deserialize_with = "deserialize_timestamps")]
-    dates_played: Vec<DateTime<Utc>>,
-    #[serde(rename(deserialize = "gamesWon"))]
-    games_won: Vec<bool>,
     scores: Vec<i64>,
     #[serde(rename(deserialize = "handicapAdjustedScores"))]
     handicap_adjusted_scores: Vec<f32>,
     #[serde(rename(deserialize = "handicapAdjustedScores_highPrecision"))]
     handicap_adjusted_scores_high_precision: Vec<f64>,
-    #[serde(rename(deserialize = "rawArray"))]
-    #[serde(deserialize_with = "deserialize_bytes_array")]
-    raw_array: Vec<Vec<u8>>,
     handle: String,
     age: i32,
     #[serde(rename(deserialize = "totalScore"))]

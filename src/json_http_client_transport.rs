@@ -94,9 +94,6 @@ fn create_post_json_http_request(
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
-    use std::iter::FromIterator;
-
     use chrono::{DateTime, Utc};
     use http::HeaderValue;
     use reqwest::header::HeaderMap;
@@ -104,7 +101,9 @@ mod test {
 
     use crate::connection::tests::test_broker_localhost_8099;
     use crate::response::data::{Data, DataRow};
-    use crate::response::raw::SelectionResults;
+    use crate::response::DataType;
+    use crate::response::raw::{RawRespSchema, SelectionResults};
+    use crate::response::sql::{RespSchema, ResultTable};
     use crate::tests::{date_time_utc, to_string_vec};
 
     use super::*;
@@ -200,22 +199,41 @@ mod test {
         ).unwrap();
         let result_table = response.result_table.unwrap();
 
-        let expected = test_database_score_sheet_data_rows_by_name();
-        assert_eq!(result_table.get_row_count(), 2);
-        assert_eq!(result_table.get_schema().get_column_count(), 10);
-        for row_index in 0..2 {
-            let name_column_index = result_table.get_schema().get_column_index("name").unwrap();
-            let row_name = result_table.get_row(row_index).unwrap().get_string(name_column_index).unwrap();
-            let expected_row = expected.get(row_name).unwrap();
-            for column_index in 0..10 {
-                let col_name = result_table.get_schema().get_column_name(column_index).unwrap();
-                let col_type = result_table.get_schema().get_column_data_type(column_index).unwrap();
-                let expected_data = expected_row.get(col_name).unwrap();
-                let data = result_table.get_row(row_index).unwrap().get_data(column_index).unwrap();
-                assert_eq!(data.data_type(), col_type);
-                assert_eq!(data, expected_data);
-            }
-        }
+        assert_eq!(result_table, ResultTable::new(
+            RespSchema::from(RawRespSchema {
+                column_data_types: vec![
+                    DataType::Int, DataType::Float, DataType::Double, DataType::Timestamp,
+                    DataType::Long, DataType::Json, DataType::IntArray, DataType::FloatArray,
+                    DataType::DoubleArray, DataType::String, DataType::Boolean, DataType::StringArray,
+                    DataType::Bytes, DataType::LongArray, DataType::Long,
+                ],
+                column_names: to_string_vec(vec![
+                    "age", "avgScore", "avgScore_highPrecision", "dateOfBirth", "dateOfFirstGame",
+                    "extra", "gameIds", "handicapAdjustedScores", "handicapAdjustedScores_highPrecision",
+                    "handle", "hasPlayed", "names", "raw", "scores", "totalScore",
+                ]),
+            }),
+            vec![
+                DataRow::new(vec![
+                    Data::Int(10), Data::Float(3.6), Data::Double(3.66),
+                    Data::Timestamp(date_time_2011_01_01t00_00_00z()),
+                    Data::Long(1577875528000), Data::Json(json!({"a": "b"})),
+                    Data::IntArray(vec![1, 2, 3]), Data::FloatArray(vec![2.1, 4.9, 3.2]),
+                    Data::DoubleArray(vec![2.15, 4.99, 3.21]), Data::String("Gladiator".to_string()),
+                    Data::Boolean(true), Data::StringArray(to_string_vec(vec!["James", "Smith"])),
+                    Data::Bytes(vec![171]), Data::LongArray(vec![3, 6, 2]), Data::Long(11),
+                ]),
+                DataRow::new(vec![
+                    Data::Int(30), Data::Float(f32::MIN), Data::Double(f64::MIN),
+                    Data::Timestamp(date_time_1991_01_01t00_00_00z()),
+                    Data::Long(1420070400001), Data::Null(DataType::Json),
+                    Data::IntArray(vec![i32::MIN]), Data::FloatArray(vec![f32::MIN]),
+                    Data::DoubleArray(vec![f64::MIN]), Data::String("Thrumbar".to_string()),
+                    Data::Boolean(false), Data::StringArray(to_string_vec(vec!["Giles", "Richie"])),
+                    Data::Bytes(vec![]), Data::LongArray(vec![i64::MIN]), Data::Long(0),
+                ]),
+            ],
+        ))
     }
 
     #[test]
@@ -231,18 +249,22 @@ mod test {
         assert_eq!(results, SelectionResults::new(
             to_string_vec(vec![
                 "age", "avgScore", "avgScore_highPrecision", "dateOfBirth", "dateOfFirstGame",
-                "extra", "hasPlayed", "name", "raw", "totalScore",
+                "extra", "gameIds", "handicapAdjustedScores", "handicapAdjustedScores_highPrecision",
+                "handle", "hasPlayed", "names", "raw", "scores", "totalScore",
             ]),
             vec![
                 vec![
-                    json!("10"), json!("5.0"), json!("5.1"), json!("2011-01-01 00:00:00.0"),
-                    json!("1356998400000"), json!("{\"a\":\"b\"}"), json!("true"), json!("A"),
-                    json!("ab"), json!("11"),
+                    json!("10"), json!("3.6"), json!("3.66"), json!("2011-01-01 00:00:00.0"),
+                    json!("1577875528000"), json!("{\"a\":\"b\"}"), json!(["1", "2", "3"]),
+                    json!(["2.1", "4.9", "3.2"]), json!(["2.15", "4.99", "3.21"]), json!("Gladiator"),
+                    json!("true"), json!(["James", "Smith"]), json!("ab"), json!(["3", "6", "2"]),
+                    json!("11"),
                 ],
                 vec![
-                    json!("30"), json!("0.0"), json!("0.0"), json!("1991-01-01 00:00:00.0"),
-                    json!("1420070400000"), json!("{}"), json!("false"), json!("B"),
-                    json!(""), json!("0"),
+                    json!("30"), json!("-∞"), json!("-∞"), json!("1991-01-01 00:00:00.0"),
+                    json!("1420070400001"), json!("null"), json!(["-2147483648"]), json!(["-∞"]),
+                    json!(["-∞"]), json!("Thrumbar"), json!("false"), json!(["Giles", "Richie"]),
+                    json!(""), json!(["-9223372036854775808"]), json!("0"),
                 ],
             ],
         ))
@@ -306,35 +328,6 @@ mod test {
             Error::FailedRequest(captured_request, _) => assert_eq!(captured_request, request),
             _ => panic!("Incorrect error kind"),
         }
-    }
-
-    fn test_database_score_sheet_data_rows_by_name() -> HashMap<String, HashMap<String, Data>> {
-        HashMap::from_iter(vec![
-            ("A".to_string(), HashMap::from_iter(vec![
-                ("name".to_string(), Data::String("A".to_string())),
-                ("age".to_string(), Data::Int(10)),
-                ("hasPlayed".to_string(), Data::Boolean(true)),
-                ("dateOfBirth".to_string(), Data::Timestamp(date_time_2011_01_01t00_00_00z())),
-                ("totalScore".to_string(), Data::Long(11)),
-                ("avgScore".to_string(), Data::Float(5.0)),
-                ("avgScore_highPrecision".to_string(), Data::Double(5.1)),
-                ("dateOfFirstGame".to_string(), Data::Long(1356998400000)),
-                ("extra".to_string(), Data::Json(json!({"a": "b"}))),
-                ("raw".to_string(), Data::Bytes(vec![171])),
-            ])),
-            ("B".to_string(), HashMap::from_iter(vec![
-                ("name".to_string(), Data::String("B".to_string())),
-                ("age".to_string(), Data::Int(30)),
-                ("hasPlayed".to_string(), Data::Boolean(false)),
-                ("dateOfBirth".to_string(), Data::Timestamp(date_time_1991_01_01t00_00_00z())),
-                ("totalScore".to_string(), Data::Long(0)),
-                ("avgScore".to_string(), Data::Float(0.0)),
-                ("avgScore_highPrecision".to_string(), Data::Double(0.0)),
-                ("dateOfFirstGame".to_string(), Data::Long(1420070400000)),
-                ("extra".to_string(), Data::Json(json!({}))),
-                ("raw".to_string(), Data::Bytes(vec![])),
-            ])),
-        ])
     }
 
     fn date_time_2011_01_01t00_00_00z() -> DateTime<Utc> {

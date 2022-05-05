@@ -8,6 +8,10 @@ use crate::response::DataType;
 use crate::response::deserialise::{
     deserialize_bytes_array_from_json,
     deserialize_bytes_from_json,
+    deserialize_double_from_json,
+    deserialize_doubles_from_json,
+    deserialize_float_from_json,
+    deserialize_floats_from_json,
     deserialize_json_from_json,
     deserialize_timestamp_from_json,
     deserialize_timestamps_from_json,
@@ -136,16 +140,16 @@ fn deserialize_data(
     let data = match data_type {
         DataType::Int => Data::Int(Deserialize::deserialize(raw_data)?),
         DataType::Long => Data::Long(Deserialize::deserialize(raw_data)?),
-        DataType::Float => Data::Float(Deserialize::deserialize(raw_data)?),
-        DataType::Double => Data::Double(Deserialize::deserialize(raw_data)?),
+        DataType::Float => Data::Float(deserialize_float_from_json(raw_data)?),
+        DataType::Double => Data::Double(deserialize_double_from_json(raw_data)?),
         DataType::Boolean => Data::Boolean(Deserialize::deserialize(raw_data)?),
         DataType::Timestamp => Data::Timestamp(deserialize_timestamp_from_json(raw_data)?),
         DataType::String => Data::String(Deserialize::deserialize(raw_data)?),
         DataType::Bytes => Data::Bytes(deserialize_bytes_from_json(raw_data)?),
         DataType::IntArray => Data::IntArray(Deserialize::deserialize(raw_data)?),
         DataType::LongArray => Data::LongArray(Deserialize::deserialize(raw_data)?),
-        DataType::FloatArray => Data::FloatArray(Deserialize::deserialize(raw_data)?),
-        DataType::DoubleArray => Data::DoubleArray(Deserialize::deserialize(raw_data)?),
+        DataType::FloatArray => Data::FloatArray(deserialize_floats_from_json(raw_data)?),
+        DataType::DoubleArray => Data::DoubleArray(deserialize_doubles_from_json(raw_data)?),
         DataType::BooleanArray => Data::BooleanArray(Deserialize::deserialize(raw_data)?),
         DataType::TimestampArray => Data::TimestampArray(deserialize_timestamps_from_json(raw_data)?),
         DataType::StringArray => Data::StringArray(Deserialize::deserialize(raw_data)?),
@@ -413,31 +417,41 @@ pub mod tests {
     #[test]
     fn data_row_deserializes_for_float() {
         let data_schema: RespSchema = RespSchema::new(
-            vec![FltAT, FltT, FltT],
+            vec![FltAT, FltT, FltT, FltT],
             BiMap::from_iter(vec![
                 ("scores".to_string(), 0),
                 ("total".to_string(), 1),
-                ("null".to_string(), 2),
+                ("neg_infinity".to_string(), 2),
+                ("null".to_string(), 3),
             ]),
         );
-        let row: Vec<Value> = Deserialize::deserialize(json! {[[1.1, 2.2], 3.3, null]}).unwrap();
+        let row: Vec<Value> = Deserialize::deserialize(json! {[
+            [1.1, 2.2, "-Infinity"], 3.3, "-Infinity", null
+        ]}).unwrap();
         let data_row = DataRow::from_row(&data_schema, row).unwrap();
-        assert_eq!(data_row, DataRow::new(vec![FltAD(vec![1.1, 2.2]), FltD(3.3), NulD(FltT)]));
+        assert_eq!(data_row, DataRow::new(vec![
+            FltAD(vec![1.1, 2.2, f32::MIN]), FltD(3.3), FltD(f32::MIN), NulD(FltT),
+        ]));
     }
 
     #[test]
     fn data_row_deserializes_for_double() {
         let data_schema: RespSchema = RespSchema::new(
-            vec![DubAT, DubT, DubT],
+            vec![DubAT, DubT, DubT, DubT],
             BiMap::from_iter(vec![
                 ("scores".to_string(), 0),
                 ("total".to_string(), 1),
-                ("null".to_string(), 2),
+                ("neg_infinity".to_string(), 2),
+                ("null".to_string(), 3),
             ]),
         );
-        let row: Vec<Value> = Deserialize::deserialize(json! {[[1.1, 2.2], 3.3, null]}).unwrap();
+        let row: Vec<Value> = Deserialize::deserialize(json! {
+            [[1.1, 2.2, "-Infinity"], 3.3, "-Infinity", null]
+        }).unwrap();
         let data_row = DataRow::from_row(&data_schema, row).unwrap();
-        assert_eq!(data_row, DataRow::new(vec![DubAD(vec![1.1, 2.2]), DubD(3.3), NulD(DubT)]));
+        assert_eq!(data_row, DataRow::new(vec![
+            DubAD(vec![1.1, 2.2, f64::MIN]), DubD(3.3), DubD(f64::MIN), NulD(DubT),
+        ]));
     }
 
     #[test]

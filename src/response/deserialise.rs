@@ -7,6 +7,9 @@ use serde_json::{Number, Result, Value};
 use crate::response::DataType;
 use crate::response::sql::{FromRow, RespSchema};
 
+const NEG_INFINITY_STRINGS: [&'static str; 3] = ["\"-Infinity\"", "-Infinity", "-∞"];
+const POS_INFINITY_STRINGS: [&'static str; 3] = ["\"Infinity\"", "Infinity", "∞"];
+
 /// Takes a json value representing a colum value from Pinot,
 /// along with its Pinot type, and makes the following transformations
 /// to allow smoother deserialization with `serde:de`.
@@ -36,6 +39,64 @@ pub fn sanitize_json_value(
         _ => raw_value,
     };
     Ok(value)
+}
+
+/// Converts Pinot floats into `Vec<f32>` using `deserialize_float_from_json()`.
+pub fn deserialize_floats_from_json(raw_value: Value) -> Result<Vec<f32>> {
+    let raw_floats: Vec<Value> = Deserialize::deserialize(raw_value)?;
+    raw_floats
+        .into_iter()
+        .map(|raw_float| deserialize_float_from_json(raw_float))
+        .collect()
+}
+
+/// Converts Pinot float into `f32`.
+///
+/// The default pinot float value may be returned as a string labelled '-Infinity'.
+/// This function intercepts such cases and provides `f32::MIN`.
+/// If positive infinity is encountered, `f32::MAX` is provided.
+pub fn deserialize_float_from_json(raw_value: Value) -> Result<f32> {
+    Ok(match raw_value {
+        Value::String(string) => {
+            if NEG_INFINITY_STRINGS.contains(&string.as_str()) {
+                f32::MIN
+            } else if POS_INFINITY_STRINGS.contains(&string.as_str()) {
+                f32::MAX
+            } else {
+                Deserialize::deserialize(Value::String(string))?
+            }
+        }
+        variant => Deserialize::deserialize(variant)?
+    })
+}
+
+/// Converts Pinot doubles into `Vec<f64>` using `deserialize_double_from_json()`.
+pub fn deserialize_doubles_from_json(raw_value: Value) -> Result<Vec<f64>> {
+    let raw_doubles: Vec<Value> = Deserialize::deserialize(raw_value)?;
+    raw_doubles
+        .into_iter()
+        .map(|raw_double| deserialize_double_from_json(raw_double))
+        .collect()
+}
+
+/// Converts Pinot float into `f64`.
+///
+/// The default pinot double value may be returned as a string labelled '-Infinity'.
+/// This function intercepts such cases and provides `f64::MIN`.
+/// If positive infinity is encountered, `f64::MAX` is provided.
+pub fn deserialize_double_from_json(raw_value: Value) -> Result<f64> {
+    Ok(match raw_value {
+        Value::String(string) => {
+            if NEG_INFINITY_STRINGS.contains(&string.as_str()) {
+                f64::MIN
+            } else if POS_INFINITY_STRINGS.contains(&string.as_str()) {
+                f64::MAX
+            } else {
+                Deserialize::deserialize(Value::String(string))?
+            }
+        }
+        variant => Deserialize::deserialize(variant)?
+    })
 }
 
 /// Converts Pinot timestamps into `Vec<DateTime<Utc>>` using `deserialize_timestamps_from_json()`.
