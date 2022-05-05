@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use bimap::BiMap;
 use chrono::{DateTime, Duration, NaiveDateTime, Utc};
 use num::cast::FromPrimitive;
+use num::Float;
 use serde::de::Error as SerdeError;
 use serde::Deserialize;
 use serde_json::Value;
@@ -264,8 +265,8 @@ fn deserialize_data(
     let data = match data_type {
         DataType::Int => Data::Int(Deserialize::deserialize(raw_data)?),
         DataType::Long => Data::Long(Deserialize::deserialize(raw_data)?),
-        DataType::Float => Data::Float(Deserialize::deserialize(raw_data)?),
-        DataType::Double => Data::Double(Deserialize::deserialize(raw_data)?),
+        DataType::Float => Data::Float(deserialize_float_from_json(raw_data)?),
+        DataType::Double => Data::Double(deserialize_double_from_json(raw_data)?),
         DataType::Boolean => Data::Boolean(Deserialize::deserialize(raw_data)?),
         DataType::Timestamp => Data::Timestamp(deserialize_timestamp(raw_data)?),
         DataType::String => Data::String(Deserialize::deserialize(raw_data)?),
@@ -280,14 +281,68 @@ fn deserialize_data(
         DataType::Bytes => Data::Bytes(deserialize_bytes(raw_data)?),
         DataType::IntArray => Data::IntArray(Deserialize::deserialize(raw_data)?),
         DataType::LongArray => Data::LongArray(Deserialize::deserialize(raw_data)?),
-        DataType::FloatArray => Data::FloatArray(Deserialize::deserialize(raw_data)?),
-        DataType::DoubleArray => Data::DoubleArray(Deserialize::deserialize(raw_data)?),
+        DataType::FloatArray => Data::FloatArray(deserialize_floats_from_json(raw_data)?),
+        DataType::DoubleArray => Data::DoubleArray(deserialize_doubles_from_json(raw_data)?),
         DataType::BooleanArray => Data::BooleanArray(Deserialize::deserialize(raw_data)?),
         DataType::TimestampArray => Data::TimestampArray(deserialize_timestamps(raw_data)?),
         DataType::StringArray => Data::StringArray(Deserialize::deserialize(raw_data)?),
         DataType::BytesArray => Data::BytesArray(deserialize_bytes_array(raw_data)?),
     };
     Ok(data)
+}
+
+const NEG_INFINITY_STRINGS: [&'static str; 3] = ["\"-Infinity\"", "-Infinity", "-∞"];
+const POS_INFINITY_STRINGS: [&'static str; 3] = ["\"Infinity\"", "Infinity", "∞"];
+
+
+fn deserialize_floats_from_json(
+    raw_value: Value
+) -> std::result::Result<Vec<f32>, serde_json::Error> {
+    let raw_floats: Vec<Value> = Deserialize::deserialize(raw_value)?;
+    raw_floats
+        .into_iter()
+        .map(|raw_float| deserialize_float_from_json(raw_float))
+        .collect()
+}
+
+fn deserialize_float_from_json(raw_value: Value) -> std::result::Result<f32, serde_json::Error> {
+    Ok(match raw_value {
+        Value::String(string) => {
+            if NEG_INFINITY_STRINGS.contains(&string.as_str()) {
+                f32::min_value()
+            } else if POS_INFINITY_STRINGS.contains(&string.as_str()) {
+                f32::max_value()
+            } else {
+                Deserialize::deserialize(Value::String(string))?
+            }
+        }
+        variant => Deserialize::deserialize(variant)?
+    })
+}
+
+fn deserialize_doubles_from_json(
+    raw_value: Value
+) -> std::result::Result<Vec<f64>, serde_json::Error> {
+    let raw_doubles: Vec<Value> = Deserialize::deserialize(raw_value)?;
+    raw_doubles
+        .into_iter()
+        .map(|raw_double| deserialize_double_from_json(raw_double))
+        .collect()
+}
+
+fn deserialize_double_from_json(raw_value: Value) -> std::result::Result<f64, serde_json::Error> {
+    Ok(match raw_value {
+        Value::String(string) => {
+            if NEG_INFINITY_STRINGS.contains(&string.as_str()) {
+                f64::min_value()
+            } else if POS_INFINITY_STRINGS.contains(&string.as_str()) {
+                f64::max_value()
+            } else {
+                Deserialize::deserialize(Value::String(string))?
+            }
+        }
+        variant => Deserialize::deserialize(variant)?
+    })
 }
 
 fn deserialize_timestamps(
