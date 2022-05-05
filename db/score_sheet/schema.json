@@ -2,12 +2,22 @@
   "schemaName": "scoreSheet",
   "dimensionFieldSpecs": [
     {
-      "name": "name",
+      "name": "handle",
       "dataType": "STRING"
+    },
+    {
+      "name": "names",
+      "dataType": "STRING",
+      "singleValueField": false
     },
     {
       "name": "age",
       "dataType": "INT"
+    },    
+    {
+      "name": "gameIds",
+      "dataType": "INT",
+      "singleValueField": false
     },
     {
       "name": "hasPlayed",
@@ -16,6 +26,21 @@
     {
       "name": "dateOfBirth",
       "dataType": "TIMESTAMP"
+    },
+    {
+      "name": "scores",
+      "dataType": "LONG",
+      "singleValueField": false
+    },
+    {
+      "name": "handicapAdjustedScores",
+      "dataType": "FLOAT",
+      "singleValueField": false
+    },
+    {
+      "name": "handicapAdjustedScores_highPrecision",
+      "dataType": "DOUBLE",
+      "singleValueField": false
     },
     {
       "name": "extra",
