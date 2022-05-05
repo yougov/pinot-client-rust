@@ -51,21 +51,13 @@ struct Row {
 fn main() {
     let client = pinot_client_rust::connection::client_from_broker_list(
         vec!["localhost:8099".to_string()], None).unwrap();
-    let pinot_queries: Vec<String> = vec![
-        "select * from scoreSheet limit 2",
-        "select count(*) as cnt from scoreSheet limit 1",
-        "select count(*) as cnt, sum(totalScore) as sum_totalScore from scoreSheet limit 1",
-        "select name, count(*) as cnt, sum(totalScore) as sum_totalScore from scoreSheet group by name limit 10",
-        "select max(totalScore) from scoreSheet limit 10",
-    ].into_iter().map(|s| s.to_string()).collect();
     let table = "scoreSheet";
+    let query = "select * from scoreSheet limit 2";
 
     println!("===Querying SQL===");
-    for query in &pinot_queries {
-        println!("\n---Trying to query Pinot: {}---", query);
-        let broker_response = client.execute_sql(table, query).unwrap();
-        print_sql_broker_resp(&broker_response);
-    }
+    println!("\n---Trying to query Pinot: {}---", query);
+    let broker_response = client.execute_sql(table, query).unwrap();
+    print_sql_broker_resp(&broker_response);
 }
 
 fn print_sql_broker_resp(broker_resp: &SqlBrokerResponse<Row>) {
