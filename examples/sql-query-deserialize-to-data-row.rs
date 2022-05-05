@@ -1,4 +1,4 @@
-use pinot_client_rust::response::{Exception, PqlBrokerResponse, ResponseStats, SqlBrokerResponse};
+use pinot_client_rust::response::{Exception, ResponseStats, SqlBrokerResponse};
 use pinot_client_rust::response::data::DataRow;
 
 fn main() {
@@ -11,20 +11,13 @@ fn main() {
         "select name, count(*) as cnt, sum(totalScore) as sum_totalScore from scoreSheet group by name limit 10",
         "select max(totalScore) from scoreSheet limit 10",
     ].into_iter().map(|s| s.to_string()).collect();
-    let table = "baseballStats";
+    let table = "scoreSheet";
 
     println!("===Querying SQL===");
     for query in &pinot_queries {
         println!("\n---Trying to query Pinot: {}---", query);
         let broker_response = client.execute_sql(table, query).unwrap();
         print_sql_broker_resp(&broker_response);
-    }
-
-    println!("\n===Querying PQL===");
-    for query in &pinot_queries {
-        println!("\n---Trying to query Pinot: {}---", query);
-        let broker_response = client.execute_pql(table, query).unwrap();
-        print_pql_broker_resp(&broker_response);
     }
 }
 
@@ -33,19 +26,6 @@ fn print_sql_broker_resp(broker_resp: &SqlBrokerResponse<DataRow>) {
     print_exceptions(&broker_resp.exceptions);
     if let Some(result_table) = &broker_resp.result_table {
         println!("Broker response table results: {:?}", result_table);
-        return;
-    }
-}
-
-fn print_pql_broker_resp(broker_resp: &PqlBrokerResponse) {
-    print_resp_stats(&broker_resp.stats);
-    print_exceptions(&broker_resp.exceptions);
-    if !broker_resp.aggregation_results.is_empty() {
-        println!("Broker response aggregation results: {:?}", broker_resp.aggregation_results);
-        return;
-    }
-    if let Some(selection_results) = &broker_resp.selection_results {
-        println!("Broker response selection results: {:?}", selection_results);
         return;
     }
 }
