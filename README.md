@@ -18,7 +18,7 @@ bin/quick-start-batch.sh
 
 Alternatively, the docker contained Pinot database ochestrated by this repository's `docker-compose.yaml` file may be used.
 
-```
+```bash
 make prepare-pinot
 ```
 
@@ -27,21 +27,23 @@ Examples
 
 Check out Client library Github Repo
 
-```
+```bash
 git clone git@github.com:yougov/pinot-client-rust.git
 cd pinot-client-rust
 ```
 
 Start up the docker contained pinot database
 
-```
+```base
 make prepare-pinot
 ```
 
-Build and run the example application to query from Pinot Batch Quickstart
+Build and run an example application to query from Pinot
 
-```
-cargo run --example deserialize-to-data-row
+```bash
+cargo run --example pql-query
+cargo run --example sql-query-deserialize-to-data-row
+cargo run --example sql-query-deserialize-to-struct
 ```
 
 Usage
@@ -54,7 +56,7 @@ Pinot client could be initialized through:
 
 1. Zookeeper Path.
 
-```
+```rust
 let client = pinot_client_rust::connection::client_from_zookeeper(
     &pinot_client_rust::zookeeper::ZookeeperConfig::new(
         vec!["localhost:2181".to_string()],
@@ -67,7 +69,7 @@ let client = pinot_client_rust::connection::client_from_zookeeper(
 
 2. A list of broker addresses.
 
-```
+```rust
 let client = pinot_client_rust::connection::client_from_broker_list(
     vec!["localhost:8099".to_string()], None);
 ```
