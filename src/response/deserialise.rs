@@ -41,6 +41,28 @@ pub fn sanitize_json_value(
     Ok(value)
 }
 
+/// Converts Pinot floats into `Vec<f32>` using `deserialize_floats_from_json()`.
+pub fn deserialize_floats<'de, D>(
+    deserializer: D
+) -> std::result::Result<Vec<f32>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+{
+    let raw_value: Value = Deserialize::deserialize(deserializer)?;
+    deserialize_floats_from_json(raw_value).map_err(D::Error::custom)
+}
+
+/// Converts Pinot floats into `f32` using `deserialize_float_from_json()`.
+pub fn deserialize_float<'de, D>(
+    deserializer: D
+) -> std::result::Result<f32, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+{
+    let raw_value: Value = Deserialize::deserialize(deserializer)?;
+    deserialize_float_from_json(raw_value).map_err(D::Error::custom)
+}
+
 /// Converts Pinot floats into `Vec<f32>` using `deserialize_float_from_json()`.
 pub fn deserialize_floats_from_json(raw_value: Value) -> Result<Vec<f32>> {
     let raw_floats: Vec<Value> = Deserialize::deserialize(raw_value)?;
@@ -68,6 +90,28 @@ pub fn deserialize_float_from_json(raw_value: Value) -> Result<f32> {
         }
         variant => Deserialize::deserialize(variant)?
     })
+}
+
+/// Converts Pinot doubles into `Vec<f64>` using `deserialize_doubles_from_json()`.
+pub fn deserialize_doubles<'de, D>(
+    deserializer: D
+) -> std::result::Result<Vec<f64>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+{
+    let raw_value: Value = Deserialize::deserialize(deserializer)?;
+    deserialize_doubles_from_json(raw_value).map_err(D::Error::custom)
+}
+
+/// Converts Pinot floats into `f64` using `deserialize_double_from_json()`.
+pub fn deserialize_double<'de, D>(
+    deserializer: D
+) -> std::result::Result<f64, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+{
+    let raw_value: Value = Deserialize::deserialize(deserializer)?;
+    deserialize_double_from_json(raw_value).map_err(D::Error::custom)
 }
 
 /// Converts Pinot doubles into `Vec<f64>` using `deserialize_double_from_json()`.
@@ -481,32 +525,45 @@ pub mod tests {
         #[derive(Deserialize, PartialEq, Debug)]
         struct TestRow {
             v_float: f32,
+            #[serde(deserialize_with = "deserialize_float")]
+            v_float_neg_inf: f32,
+            #[serde(deserialize_with = "deserialize_floats")]
             v_floats: Vec<f32>,
         }
         let data_schema = RespSchema::from(RawRespSchema {
-            column_data_types: vec![FltT, FltAT],
-            column_names: to_string_vec(vec!["v_float", "v_floats"]),
+            column_data_types: vec![FltT, FltT, FltAT],
+            column_names: to_string_vec(vec!["v_float", "v_float_neg_inf", "v_floats"]),
         });
-        let values = vec![json!(4.1), json!([4.1, 4.2])];
+        let values = vec![json!(4.1), json!("-Infinity"), json!([4.1, 4.2, "-Infinity"])];
         let test_row = TestRow::from_row(&data_schema, values).unwrap();
-        assert_eq!(test_row, TestRow { v_float: 4.1, v_floats: vec![4.1, 4.2] });
+        assert_eq!(test_row, TestRow {
+            v_float: 4.1,
+            v_float_neg_inf: f32::MIN,
+            v_floats: vec![4.1, 4.2, f32::MIN],
+        });
     }
-
 
     #[test]
     fn pinot_row_deserializable_to_struct_for_double_fields() {
         #[derive(Deserialize, PartialEq, Debug)]
         struct TestRow {
             v_double: f64,
+            #[serde(deserialize_with = "deserialize_double")]
+            v_double_neg_inf: f64,
+            #[serde(deserialize_with = "deserialize_doubles")]
             v_doubles: Vec<f64>,
         }
         let data_schema = RespSchema::from(RawRespSchema {
-            column_data_types: vec![DubT, DubAT],
-            column_names: to_string_vec(vec!["v_double", "v_doubles"]),
+            column_data_types: vec![DubT, DubT, DubAT],
+            column_names: to_string_vec(vec!["v_double", "v_double_neg_inf", "v_doubles"]),
         });
-        let values = vec![json!(5.1), json!([5.1, 5.2])];
+        let values = vec![json!(5.1), json!("-Infinity"), json!([5.1, 5.2, "-Infinity"])];
         let test_row = TestRow::from_row(&data_schema, values).unwrap();
-        assert_eq!(test_row, TestRow { v_double: 5.1, v_doubles: vec![5.1, 5.2] });
+        assert_eq!(test_row, TestRow {
+            v_double: 5.1,
+            v_double_neg_inf: f64::MIN,
+            v_doubles: vec![5.1, 5.2, f64::MIN],
+        });
     }
 
     #[test]
