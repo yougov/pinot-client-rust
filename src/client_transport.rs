@@ -1,31 +1,52 @@
 use crate::errors::Result;
-use crate::request::Request;
-use crate::response::BrokerResponse;
+use crate::response::PqlBrokerResponse;
+use crate::response::sql::{FromRow, SqlBrokerResponse};
 
 pub trait ClientTransport {
-    fn execute(&self, broker_address: &str, query: Request) -> Result<BrokerResponse>;
+    fn execute_sql<T: FromRow>(
+        &self, broker_address: &str, query: &str,
+    ) -> Result<SqlBrokerResponse<T>>;
+    fn execute_pql(
+        &self, broker_address: &str, query: &str,
+    ) -> Result<PqlBrokerResponse>;
 }
 
 #[cfg(test)]
 pub mod tests {
+    use serde_json::Value;
+    use crate::response::raw::RawBrokerResponse;
+
     use super::*;
 
     pub struct TestClientTransport {
-        return_function: Box<dyn Fn(&str, Request) -> Result<BrokerResponse>>,
+        sql_return_function: Box<dyn Fn(&str, &str) -> Result<Value>>,
+        pql_return_function: Box<dyn Fn(&str, &str) -> Result<PqlBrokerResponse>>,
     }
 
     impl TestClientTransport {
-        pub fn new<F>(return_function: F) -> Self
+        pub fn new<SqlFn, PqlFn>(sql_return_function: SqlFn, pql_return_function: PqlFn) -> Self
             where
-                F: 'static + Fn(&str, Request) -> Result<BrokerResponse>
+                SqlFn: 'static + Fn(&str, &str) -> Result<Value>,
+                PqlFn: 'static + Fn(&str, &str) -> Result<PqlBrokerResponse>,
         {
-            Self { return_function: Box::new(return_function) }
+            Self {
+                sql_return_function: Box::new(sql_return_function),
+                pql_return_function: Box::new(pql_return_function),
+            }
         }
     }
 
     impl ClientTransport for TestClientTransport {
-        fn execute(&self, broker_address: &str, query: Request) -> Result<BrokerResponse> {
-            (self.return_function)(broker_address, query)
+        fn execute_sql<T: FromRow>(
+            &self, broker_address: &str, query: &str,
+        ) -> Result<SqlBrokerResponse<T>> {
+            let json: Value = (self.sql_return_function)(broker_address, query)?;
+            let raw_broker_response: RawBrokerResponse = serde_json::from_value(json)?;
+            Result::from(raw_broker_response)
+        }
+
+        fn execute_pql(&self, broker_address: &str, query: &str) -> Result<PqlBrokerResponse> {
+            (self.pql_return_function)(broker_address, query)
         }
     }
 }

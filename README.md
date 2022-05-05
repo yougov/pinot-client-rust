@@ -41,7 +41,7 @@ make prepare-pinot
 Build and run the example application to query from Pinot Batch Quickstart
 
 ```
-cargo run --example batch-quickstart
+cargo run --example deserialize-to-data-row
 ```
 
 Usage
@@ -76,22 +76,22 @@ let client = pinot_client_rust::connection::client_from_broker_list(
 Query Pinot
 -----------
 
-Please see this [example](https://github.com/yougov/pinot-client-rust/blob/master/examples/batch-quickstart.rs) for your reference.
+Please see this [example](https://github.com/yougov/pinot-client-rust/blob/master/examples/deserialize-to-data-row.rs) for your reference.
 
 Code snippet:
 ```rust
 fn main() {
     let client = pinot_client_rust::connection::client_from_broker_list(
         vec!["localhost:8099".to_string()], None).unwrap();
-    let broker_response = client.execute_sql(
+    let broker_response = client.execute_sql::<pinot_client_rust::response::data::DataRow>(
         "baseballStats",
         "select count(*) as cnt, sum(homeRuns) as sum_homeRuns from baseballStats group by teamID limit 10"
     ).unwrap();
     log::info!(
         "Query Stats: response time - {} ms, scanned docs - {}, total docs - {}",
-        broker_response.time_used_ms,
-        broker_response.num_docs_scanned,
-        broker_response.total_docs,
+        broker_response.stats.time_used_ms,
+        broker_response.stats.num_docs_scanned,
+        broker_response.stats.total_docs,
     );
 }
 ```
@@ -99,66 +99,88 @@ fn main() {
 Response Format
 ---------------
 
-Query Response is defined as the struct of following:
+Query Responses are defined by one of two broker response structures.
+SQL queries return `SqlBrokerResponse`, whose generic parameter is supported by all structs implementing the 
+`FromRow` trait, whereas PQL queries return `PqlBrokerResponse`.
+`SqlBrokerResponse` contains a `ResultTable`, the holder for SQL query data, whereas `PqlBrokerResponse` contains 
+`AggregationResults` and `SelectionResults`, the holders for PQL query data. 
+Exceptions for a given request for both `SqlBrokerResponse` and `PqlBrokerResponse` are stored in the `Exception` array.
+Stats for a given request for both `SqlBrokerResponse` and `PqlBrokerResponse` are stored in `ResponseStats`.
+
+### Common
+
+`Exception` is defined as:
 
 ```rust
-/// BrokerResponse is the data structure for broker response.
-#[derive(Clone, Debug, Deserialize, PartialEq)]
-pub struct BrokerResponse {
-    #[serde(default)]
-    #[serde(rename(deserialize = "aggregationResults"))]
-    pub aggregation_results: Vec<AggregationResult>,
-    #[serde(default)]
-    #[serde(rename(deserialize = "selectionResults"))]
-    pub selection_results: Option<SelectionResults>,
-    #[serde(default)]
-    #[serde(rename(deserialize = "resultTable"))]
-    pub result_table: Option<ResultTable>,
-    pub exceptions: Vec<Exception>,
-    #[serde(default)]
-    #[serde(rename(deserialize = "traceInfo"))]
+/// Pinot exception.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+pub struct Exception {
+    #[serde(rename(deserialize = "errorCode"))]
+    pub error_code: i32,
+    pub message: String,
+}
+```
+
+`ResponseStats` is defined as:
+
+```rust
+/// ResponseStats carries all stats returned by a query.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResponseStats {
     pub trace_info: HashMap<String, String>,
-    #[serde(rename(deserialize = "numServersQueried"))]
     pub num_servers_queried: i32,
-    #[serde(rename(deserialize = "numServersResponded"))]
     pub num_servers_responded: i32,
-    #[serde(rename(deserialize = "numSegmentsQueried"))]
     pub num_segments_queried: i32,
-    #[serde(rename(deserialize = "numSegmentsProcessed"))]
     pub num_segments_processed: i32,
-    #[serde(rename(deserialize = "numSegmentsMatched"))]
     pub num_segments_matched: i32,
-    #[serde(rename(deserialize = "numConsumingSegmentsQueried"))]
     pub num_consuming_segments_queried: i32,
-    #[serde(rename(deserialize = "numDocsScanned"))]
     pub num_docs_scanned: i64,
-    #[serde(rename(deserialize = "numEntriesScannedInFilter"))]
     pub num_entries_scanned_in_filter: i64,
-    #[serde(rename(deserialize = "numEntriesScannedPostFilter"))]
     pub num_entries_scanned_post_filter: i64,
-    #[serde(rename(deserialize = "numGroupsLimitReached"))]
     pub num_groups_limit_reached: bool,
-    #[serde(rename(deserialize = "totalDocs"))]
     pub total_docs: i64,
-    #[serde(rename(deserialize = "timeUsedMs"))]
     pub time_used_ms: i32,
-    #[serde(rename(deserialize = "minConsumingFreshnessTimeMs"))]
     pub min_consuming_freshness_time_ms: i64,
 }
 ```
 
-Note that `AggregationResults` and `SelectionResults` are holders for PQL queries.
+### PQL
 
-Meanwhile `ResultTable` is the holder for SQL queries.
+`PqlBrokerResponse` is defined as:
+
+```rust
+/// PqlBrokerResponse is the data structure for broker response to a PQL query.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PqlBrokerResponse {
+    pub aggregation_results: Vec<AggregationResult>,
+    pub selection_results: Option<SelectionResults>,
+    pub exceptions: Vec<Exception>,
+    pub stats: ResponseStats,
+}
+```
+
+### SQL
+
+`SqlBrokerResponse` is defined as:
+
+```rust
+/// SqlBrokerResponse is the data structure for a broker response to an SQL query.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SqlBrokerResponse<T: FromRow> {
+    pub result_table: Option<ResultTable<T>>,
+    pub exceptions: Vec<Exception>,
+    pub stats: ResponseStats,
+}
+```
 
 `ResultTable` is defined as:
 
 ```rust
 /// ResultTable is the holder for SQL queries.
 #[derive(Clone, Debug, PartialEq)]
-pub struct ResultTable {
+pub struct ResultTable<T: FromRow> {
     data_schema: RespSchema,
-    rows: DataRows,
+    rows: Vec<T>,
 }
 ```
 
@@ -198,16 +220,61 @@ pub enum DataType {
     String,
     Json,
     Bytes,
+    IntArray,
+    LongArray,
+    FloatArray,
+    DoubleArray,
+    BooleanArray,
+    TimestampArray,
+    StringArray,
+    BytesArray,
 }
 ```
 
-`DataRows` is defined as:
+`FromRow` is defined as:
 
 ```rust
-/// A matrix of `Data`
+/// FromRow represents any structure which can deserialize
+/// the ResultTable.rows json field provided a `RespSchema`
+pub trait FromRow: Sized {
+    fn from_row(
+        data_schema: &RespSchema,
+        row: Vec<Value>,
+    ) -> std::result::Result<Self, serde_json::Error>;
+}
+```
+
+In addition to being implemented by `DataRow`, `FromRow` is also implemented by all implementors
+of `serde::de::Deserialize`, which is achieved by first deserializing the response to json and then 
+before each row is deserialized into final form, a json map of column name to value is substituted.
+Additionally, there are a number of serde deserializer functions provided to deserialize complex pinot types:
+
+```
+/// Converts Pinot timestamps into `Vec<DateTime<Utc>>` using `deserialize_timestamps_from_json()`.
+fn deserialize_timestamps<'de, D>(deserializer: D) -> std::result::Result<Vec<DateTime<Utc>>, D::Error>...
+
+/// Converts Pinot timestamps into `DateTime<Utc>` using `deserialize_timestamp_from_json()`.
+pub fn deserialize_timestamp<'de, D>(deserializer: D) -> std::result::Result<DateTime<Utc>, D::Error>...
+
+/// Converts Pinot hex strings into `Vec<Vec<u8>>` using `deserialize_bytes_array_from_json()`.
+pub fn deserialize_bytes_array<'de, D>(deserializer: D) -> std::result::Result<Vec<Vec<u8>>, D::Error>...
+
+/// Converts Pinot hex string into `Vec<u8>` using `deserialize_bytes_from_json()`.
+pub fn deserialize_bytes<'de, D>(deserializer: D) -> std::result::Result<Vec<u8>, D::Error>...
+
+/// Deserializes json potentially packaged into a string by calling `deserialize_json_from_json()`.
+pub fn deserialize_json<'de, D>(deserializer: D) -> std::result::Result<Value, D::Error>
+```
+
+For example usage, please refer to this [example](https://github.com/yougov/pinot-client-rust/blob/master/examples/deserialize-to-struct.rs) 
+
+`DataRow` is defined as:
+
+```rust
+/// A row of `Data`
 #[derive(Clone, Debug, PartialEq)]
-pub struct DataRows {
-    rows: Vec<Vec<Data>>,
+pub struct DataRow {
+    row: Vec<Data>,
 }
 ```
 
@@ -226,6 +293,14 @@ pub enum Data {
     String(String),
     Json(Value),
     Bytes(Vec<u8>),
+    IntArray(Vec<i32>),
+    LongArray(Vec<i64>),
+    FloatArray(Vec<f32>),
+    DoubleArray(Vec<f64>),
+    BooleanArray(Vec<bool>),
+    TimestampArray(Vec<DateTime<Utc>>),
+    StringArray(Vec<String>),
+    BytesArray(Vec<Vec<u8>>),
     Null(DataType),
 }
 ```
@@ -246,4 +321,4 @@ fn get_bytes(&self) -> Result<&Vec<u8>>;
 fn is_null(&self) -> bool;
 ```
 
-In addition to row count, `DataRows` also contains convenience counterparts to those above given a row and column index.
+In addition to row count, `DataRow` also contains convenience counterparts to those above given a column index.

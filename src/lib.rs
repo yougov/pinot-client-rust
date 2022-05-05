@@ -60,15 +60,15 @@ let client = pinot_client_rust::connection::client_from_broker_list(
 ```rust
 let client = pinot_client_rust::connection::client_from_broker_list(
     vec!["localhost:8099".to_string()], None).unwrap();
-let broker_response = client.execute_sql(
+let broker_response = client.execute_sql::<pinot_client_rust::response::data::DataRow>(
     "baseballStats",
     "select count(*) as cnt, sum(homeRuns) as sum_homeRuns from baseballStats group by teamID limit 10"
 ).unwrap();
 log::info!(
     "Query Stats: response time - {} ms, scanned docs - {}, total docs - {}",
-    broker_response.time_used_ms,
-    broker_response.num_docs_scanned,
-    broker_response.total_docs,
+    broker_response.stats.time_used_ms,
+    broker_response.stats.num_docs_scanned,
+    broker_response.stats.total_docs,
 );
 ```
 
@@ -130,6 +130,18 @@ mod tests {
             NaiveDateTime::parse_from_str(
                 &format!("{}-{}-{} {}:{}:{}", year, month, day, hour, min, sec),
                 "%Y-%m-%d %H:%M:%S",
+            ).unwrap(),
+            Utc,
+        )
+    }
+
+    pub fn date_time_utc_milli(
+        year: u32, month: u32, day: u32, hour: u32, min: u32, sec: u32, milli: u32,
+    ) -> DateTime<Utc> {
+        DateTime::from_utc(
+            NaiveDateTime::parse_from_str(
+                &format!("{}-{}-{} {}:{}:{}.{}", year, month, day, hour, min, sec, milli),
+                "%Y-%m-%d %H:%M:%S%.f",
             ).unwrap(),
             Utc,
         )

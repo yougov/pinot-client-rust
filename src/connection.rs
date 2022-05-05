@@ -9,8 +9,8 @@ use crate::dynamic_broker_selector::{auto_refreshing_dynamic_broker_selector, Dy
 use crate::errors::Result;
 use crate::external_view::format_external_view_zk_path;
 use crate::json_http_client_transport::JsonHttpClientTransport;
-use crate::request::{QueryFormat, Request};
-use crate::response::BrokerResponse;
+use crate::response::{PqlBrokerResponse, SqlBrokerResponse};
+use crate::response::sql::FromRow;
 use crate::simple_broker_selector::SimpleBrokerSelector;
 use crate::zookeeper::{connect_to_zookeeper, ZookeeperConfig};
 
@@ -28,14 +28,14 @@ impl<CT: ClientTransport, BS: BrokerSelector> Connection<CT, BS> {
 
 /// ExecuteSQL for a given table
 impl<CT: ClientTransport, BS: BrokerSelector> Connection<CT, BS> {
-    pub fn execute_sql(&self, table: &str, query: &str) -> Result<BrokerResponse> {
+    pub fn execute_sql<T: FromRow>(&self, table: &str, query: &str) -> Result<SqlBrokerResponse<T>> {
         let broker_address = self.broker_selector.select_broker(table)?;
-        self.transport.execute(&broker_address, Request::new(QueryFormat::SQL, query))
+        self.transport.execute_sql(&broker_address, query)
     }
 
-    pub fn execute_pql(&self, table: &str, query: &str) -> Result<BrokerResponse> {
+    pub fn execute_pql(&self, table: &str, query: &str) -> Result<PqlBrokerResponse> {
         let broker_address = self.broker_selector.select_broker(table)?;
-        self.transport.execute(&broker_address, Request::new(QueryFormat::PQL, query))
+        self.transport.execute_pql(&broker_address, query)
     }
 }
 
@@ -75,7 +75,7 @@ pub mod tests {
 
     use crate::broker_selector::tests::TestBrokerSelector;
     use crate::client_transport::tests::TestClientTransport;
-    use crate::response::tests::test_broker_response;
+    use crate::response::tests::{test_broker_response_json, test_pql_broker_response, test_sql_broker_response};
     use crate::zookeeper::test::test_pinot_cluster_zookeeper_config;
 
     use super::*;
@@ -83,11 +83,16 @@ pub mod tests {
     #[test]
     fn execute_sql_calls_broker_selector_and_client_transport_correctly() {
         let conn = Connection::new(
-            TestClientTransport::new(|broker_address, query| {
-                assert_eq!(broker_address, "localhost:8099");
-                assert_eq!(query, Request::new(QueryFormat::SQL, "SELECT * FROM table"));
-                Ok(test_broker_response())
-            }),
+            TestClientTransport::new(
+                |broker_address, query| {
+                    assert_eq!(broker_address, "localhost:8099");
+                    assert_eq!(query, "SELECT * FROM table");
+                    Ok(test_broker_response_json())
+                },
+                |_, _| {
+                    panic!("Shouldn't be called")
+                },
+            ),
             TestBrokerSelector::new(|table| {
                 assert_eq!(table, "table");
                 Ok(test_broker_addresses().remove(0))
@@ -95,17 +100,22 @@ pub mod tests {
         );
 
         let broker_response = conn.execute_sql("table", "SELECT * FROM table").unwrap();
-        assert_eq!(broker_response, test_broker_response());
+        assert_eq!(broker_response, test_sql_broker_response());
     }
 
     #[test]
     fn execute_pql_calls_broker_selector_and_client_transport_correctly() {
         let conn = Connection::new(
-            TestClientTransport::new(|broker_address, query| {
-                assert_eq!(broker_address, "localhost:8099");
-                assert_eq!(query, Request::new(QueryFormat::PQL, "SELECT * FROM table"));
-                Ok(test_broker_response())
-            }),
+            TestClientTransport::new(
+                |_, _| {
+                    panic!("Shouldn't be called")
+                },
+                |broker_address, query| {
+                    assert_eq!(broker_address, "localhost:8099");
+                    assert_eq!(query, "SELECT * FROM table");
+                    Ok(test_pql_broker_response())
+                },
+            ),
             TestBrokerSelector::new(|table| {
                 assert_eq!(table, "table");
                 Ok(test_broker_addresses().remove(0))
@@ -113,7 +123,7 @@ pub mod tests {
         );
 
         let broker_response = conn.execute_pql("table", "SELECT * FROM table").unwrap();
-        assert_eq!(broker_response, test_broker_response());
+        assert_eq!(broker_response, test_pql_broker_response());
     }
 
     #[test]
