@@ -80,6 +80,8 @@ Note that `pinot_client_rust::response::AggregationResults` and
 Meanwhile `pinot_client_rust::response::ResultTable` is the holder for SQL queries.
  */
 
+#![feature(type_alias_impl_trait)]
+
 pub mod broker_selector;
 pub mod client_transport;
 pub mod connection;

@@ -12,6 +12,13 @@ pub mod raw;
 pub mod sql;
 pub mod deserialise;
 
+/// Pinot exception.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+pub struct Exception {
+    #[serde(rename(deserialize = "errorCode"))]
+    pub error_code: i32,
+    pub message: String,
+}
 
 /// ResponseStats carries all stats returned by a query.
 #[derive(Clone, Debug, PartialEq)]
@@ -52,14 +59,6 @@ pub enum DataType {
     TimestampArray,
     StringArray,
     BytesArray,
-}
-
-/// Pinot exception.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
-pub struct Exception {
-    #[serde(rename(deserialize = "errorCode"))]
-    pub error_code: i32,
-    pub message: String,
 }
 
 impl<'de> Deserialize<'de> for DataType {
