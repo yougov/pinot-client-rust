@@ -393,6 +393,8 @@ impl<'de> MapAccess<'de> for JsonRowDeserializer {
 
 #[cfg(test)]
 pub mod tests {
+    use std::collections::HashMap;
+    use std::iter::FromIterator;
     use serde_json::json;
 
     use crate::response::{
@@ -684,5 +686,49 @@ pub mod tests {
             v_json_from_string: json!({"a": "b"}),
             v_json_as_string: "{\"a\": \"b\"}".to_string(),
         });
+    }
+
+    #[test]
+    fn pinot_row_deserializable_to_fieldless_struct() {
+        #[derive(Deserialize, PartialEq, Debug)]
+        struct TestRow(
+            i32,
+            #[serde(deserialize_with = "deserialize_json")]
+            Value,
+        );
+        let data_schema = RespSchema::from(RawRespSchema {
+            column_data_types: vec![IntT, JsnT],
+            column_names: to_string_vec(vec!["v_int", "v_json"]),
+        });
+        let values = vec![json!(1), json!({"a": "b"})];
+        let test_row = TestRow::from_row(&data_schema, values).unwrap();
+        assert_eq!(test_row, TestRow(1, json!({"a": "b"})));
+    }
+
+    #[test]
+    fn pinot_row_deserializable_to_map() {
+        type TestRow = HashMap<String, String>;
+        let data_schema = RespSchema::from(RawRespSchema {
+            column_data_types: vec![IntT, StrT],
+            column_names: to_string_vec(vec!["v_int", "v_string"]),
+        });
+        let values = vec![json!("1"), json!("name")];
+        let test_row = TestRow::from_row(&data_schema, values).unwrap();
+        assert_eq!(test_row, TestRow::from_iter(vec![
+            ("v_int".to_string(), "1".to_string()),
+            ("v_string".to_string(), "name".to_string()),
+        ]));
+    }
+
+    #[test]
+    fn pinot_row_deserializable_to_fieldless_tuple() {
+        type TestRow = (i32, Value);
+        let data_schema = RespSchema::from(RawRespSchema {
+            column_data_types: vec![IntT, JsnT],
+            column_names: to_string_vec(vec!["v_int", "v_json"]),
+        });
+        let values = vec![json!(1), json!({"a": "b"})];
+        let test_row = TestRow::from_row(&data_schema, values).unwrap();
+        assert_eq!(test_row, (1, json!({"a": "b"})));
     }
 }
