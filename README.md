@@ -74,6 +74,10 @@ let client = pinot_client_rust::connection::client_from_broker_list(
     vec!["localhost:8099".to_string()], None);
 ```
 
+### Asynchronous Queries
+
+An asynchronous connection can be established with `pinot_client_rust::async_connection::AsyncConnection` for
+which exist equivalents to the above described synchronous instantiation methods.
 
 Query Pinot
 -----------
