@@ -55,6 +55,12 @@ let client = pinot_client_rust::connection::client_from_broker_list(
     vec!["https://localhost:8099".to_string()], None);
 ```
 
+### Asynchronous Queries
+
+An asynchronous connection can be established with
+`pinot_client_rust::async_connection::AsyncConnection` for which exist equivalents to the above
+described synchronous instantiation methods.
+
 ## Example Pinot Query
 
 ```rust
@@ -78,14 +84,18 @@ Query Response is defined as the struct `pinot_client_rust::response::BrokerResp
 Note that `pinot_client_rust::response::AggregationResults` and
 `pinot_client_rust::response::SelectionResults` are holders for PQL queries.
 Meanwhile `pinot_client_rust::response::ResultTable` is the holder for SQL queries.
+
  */
 
+pub mod async_client_transport;
+pub mod async_connection;
 pub mod broker_selector;
 pub mod client_transport;
 pub mod connection;
 pub mod dynamic_broker_selector;
 pub mod errors;
 pub mod external_view;
+pub mod json_async_http_client_transport;
 pub mod json_http_client_transport;
 pub mod request;
 pub mod response;

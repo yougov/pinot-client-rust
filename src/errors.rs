@@ -1,8 +1,9 @@
 use std::num::ParseIntError;
 
 use log::error;
-use reqwest::blocking::Response as ReqwestResponse;
+use reqwest::blocking::Response as BlockingReqwestResponse;
 use reqwest::Error as ReqwestError;
+use reqwest::Response as AsyncReqwestResponse;
 use serde_json::error::Error as JsonError;
 use zookeeper::ZkError;
 
@@ -62,9 +63,13 @@ pub enum Error {
     #[error("Failed to build HTTP request from {0:?} due to: {1}")]
     InvalidRequest(Request, #[source] ReqwestError),
 
-    /// Invalid `ReqwestResponse`.
+    /// Invalid `BlockingReqwestResponse`.
     #[error("Encountered invalid HTTP response {0:?}")]
-    InvalidResponse(ReqwestResponse),
+    InvalidBlockingResponse(BlockingReqwestResponse),
+
+    /// Invalid `AsyncReqwestResponse`.
+    #[error("Encountered invalid HTTP response {0:?}")]
+    InvalidAsyncResponse(AsyncReqwestResponse),
 
     /// No broker available.
     #[error("No available broker found")]

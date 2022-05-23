@@ -57,6 +57,18 @@ impl serde::Serialize for Request {
     }
 }
 
+pub fn encode_query_address(broker_address: &str, query_format: &QueryFormat) -> String {
+    let query_address = match query_format {
+        QueryFormat::PQL => format!("{}/query", broker_address),
+        QueryFormat::SQL => format!("{}/query/sql", broker_address),
+    };
+    if !broker_address.starts_with("http://") && !broker_address.starts_with("https://") {
+        format!("http://{}", query_address)
+    } else {
+        query_address
+    }
+}
+
 #[cfg(test)]
 mod test {
     use serde_json::json;
@@ -88,5 +100,59 @@ mod test {
             QUERY_OPTIONS: QUERY_OPTIONS_SQL_VALUE,
         });
         assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn encode_query_address_encodes_pql_without_http_prefix() {
+        let broker_address = "localhost:8000";
+        assert_eq!(
+            encode_query_address(broker_address, &QueryFormat::PQL),
+            "http://localhost:8000/query"
+        );
+    }
+
+    #[test]
+    fn encode_query_address_encodes_sql_without_http_prefix() {
+        let broker_address = "localhost:8000";
+        assert_eq!(
+            encode_query_address(broker_address, &QueryFormat::SQL),
+            "http://localhost:8000/query/sql"
+        );
+    }
+
+    #[test]
+    fn encode_query_address_encodes_pql_with_http_prefix() {
+        let broker_address = "http://localhost:8000";
+        assert_eq!(
+            encode_query_address(broker_address, &QueryFormat::PQL),
+            "http://localhost:8000/query"
+        );
+    }
+
+    #[test]
+    fn encode_query_address_encodes_sql_with_http_prefix() {
+        let broker_address = "http://localhost:8000";
+        assert_eq!(
+            encode_query_address(broker_address, &QueryFormat::SQL),
+            "http://localhost:8000/query/sql"
+        );
+    }
+
+    #[test]
+    fn encode_query_address_encodes_pql_with_https_prefix() {
+        let broker_address = "https://localhost:8000";
+        assert_eq!(
+            encode_query_address(broker_address, &QueryFormat::PQL),
+            "https://localhost:8000/query"
+        );
+    }
+
+    #[test]
+    fn encode_query_address_encodes_sql_with_https_prefix() {
+        let broker_address = "https://localhost:8000";
+        assert_eq!(
+            encode_query_address(broker_address, &QueryFormat::SQL),
+            "https://localhost:8000/query/sql"
+        );
     }
 }
