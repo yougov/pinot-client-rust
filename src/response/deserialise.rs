@@ -1,45 +1,13 @@
 use chrono::{DateTime, Utc};
 use chrono::serde::ts_milliseconds;
-use serde::de::Error as SerdeError;
-use serde::Deserialize;
-use serde_json::{Number, Result, Value};
+use serde::{Deserialize, Deserializer};
+use serde::de::{DeserializeSeed, Error as SerdeError, MapAccess, Visitor};
+use serde_json::{Result, Value};
 
-use crate::response::DataType;
 use crate::response::sql::{FromRow, RespSchema};
 
 const NEG_INFINITY_STRINGS: [&'static str; 3] = ["\"-Infinity\"", "-Infinity", "-∞"];
 const POS_INFINITY_STRINGS: [&'static str; 3] = ["\"Infinity\"", "Infinity", "∞"];
-
-/// Takes a json value representing a colum value from Pinot,
-/// along with its Pinot type, and makes the following transformations
-/// to allow smoother deserialization with `serde:de`.
-///
-/// Timestamps which are returned as json strings are mapped from the pinot format
-/// of "%Y-%m-%d %H:%M:%S%.f" to the rfc3339 of "%Y-%m-%d %H:%M:%S%.fz", assuming naively
-/// the timezone to be UTC, which it should be given timestamps are stored as millisecond
-/// epoch values.
-///
-/// Bytes values which are returned as json strings, which are assumed to be in hex string format,
-/// are decoded into `Vec<u8>` and then repackaged into a json array.
-///
-/// Json values which are returned as non-empty json strings are deserialized into json objects.
-pub fn sanitize_json_value(
-    data_type: &DataType,
-    raw_value: Value,
-) -> Result<Value> {
-    if raw_value.is_null() {
-        return Ok(raw_value);
-    }
-    let value = match data_type {
-        DataType::Timestamp => format_string_timestamp_rfc3339(raw_value),
-        DataType::TimestampArray => format_string_timestamps_rfc3339(raw_value)?,
-        DataType::Bytes => decode_and_repack_hex_string(raw_value)?,
-        DataType::BytesArray => decode_and_repack_hex_strings(raw_value)?,
-        DataType::Json => deserialize_json_from_json(raw_value)?,
-        _ => raw_value,
-    };
-    Ok(value)
-}
 
 /// Converts Pinot floats into `Vec<f32>` using `deserialize_floats_from_json()`.
 pub fn deserialize_floats<'de, D>(
@@ -188,9 +156,14 @@ pub fn deserialize_timestamp_from_json(raw_value: Value) -> Result<DateTime<Utc>
     match raw_value {
         Value::Number(number) => ts_milliseconds::deserialize(number),
         Value::String(string) => DateTime::deserialize(
-            format_string_timestamp_rfc3339(Value::String(string))),
+            Value::String(append_z_to_force_timestamp_rfc3339(string))),
         variant => Deserialize::deserialize(variant),
     }
+}
+
+fn append_z_to_force_timestamp_rfc3339(mut timestamp: String) -> String {
+    timestamp.push_str("z");
+    timestamp
 }
 
 /// Converts Pinot bytes array into `Vec<Vec<u8>>` using `deserialize_bytes_array_from_json()`.
@@ -232,7 +205,7 @@ pub fn deserialize_bytes_array_from_json(
 /// are decoded into `Vec<u8>` and then repackaged into a json array.
 pub fn deserialize_bytes_from_json(raw_value: Value) -> Result<Vec<u8>> {
     match raw_value {
-        Value::String(data) => decode_hex_string(data),
+        Value::String(data) => hex::decode(data).map_err(serde_json::Error::custom),
         variant => Deserialize::deserialize(variant),
     }
 }
@@ -266,89 +239,162 @@ pub fn deserialize_json_from_json(raw_value: Value) -> Result<Value> {
     }
 }
 
-/// Cheap and probably inefficient means of arbitrary
-/// struct deserialization by making an intermediate
-/// json map for a row.
+/// Implementation of `FromRow` for all implementers of `Deserialize`.
+///
+/// Utilizes a deserializing wrapper which defers to the Json deserializer
+/// except when deserializing to a map or a structure, in which case
+/// it provides the column names as keys.
 impl<'de, T: Deserialize<'de>> FromRow for T {
     fn from_row(
         data_schema: &RespSchema,
         row: Vec<Value>,
     ) -> Result<Self> {
-        let row_map = vec_row_to_json_map(data_schema, row)?;
-        Deserialize::deserialize(row_map)
+        let d = JsonRowDeserializer::new(data_schema.clone(), row);
+        let a: T = T::deserialize(d)?;
+        Ok(a)
     }
 }
 
-fn vec_row_to_json_map(
-    data_schema: &RespSchema,
-    vec_row: Vec<Value>,
-) -> Result<Value> {
-    let mut map_row: serde_json::Map<String, Value> = serde_json::Map::with_capacity(vec_row.len());
-    for (column_index, value) in vec_row.into_iter().enumerate() {
-        let column_name = data_schema.get_column_name(column_index)
-            .map_err(|_| serde_json::Error::custom(format!(
-                "Column index of {} not found in data schema when deserializing rows",
-                column_index
-            )))?;
-        map_row.insert(column_name.to_string(), value);
+/// Define a struct/enum deserialization method which
+/// defers to a deserializer accessed by a getter method
+macro_rules! defer_fieldless_struct_deserialization {
+    ($getter:ident, $method:ident) => {
+        fn $method<V: Visitor<'de>>(self, name: &'static str, visitor: V) -> Result<V::Value> {
+            self.$getter().$method(name, visitor)
+        }
+    };
+}
+
+/// Define a deserialization method which defers
+/// to a deserializer accessed by a getter method
+macro_rules! defer_base_deserialization {
+    ($getter:ident, $method:ident) => {
+        fn $method<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+            self.$getter().$method(visitor)
+        }
+    };
+}
+
+/// A deserializing wrapper which defers to `serde_json::Deserializer`
+/// except when deserializing to a map or a structure, in which case
+/// it provides the column names as keys by implementing `MapAccess`.
+struct JsonRowDeserializer {
+    schema: RespSchema,
+    row: Vec<Value>,
+    requested: usize,
+}
+
+impl JsonRowDeserializer {
+    pub fn new(schema: RespSchema, row: Vec<Value>) -> Self {
+        Self { schema, row, requested: 0 }
     }
-    Ok(Value::Object(map_row))
-}
 
-fn format_string_timestamps_rfc3339(raw_value: Value) -> Result<Value> {
-    let raw_timestamps: Vec<Value> = Deserialize::deserialize(raw_value)?;
-    let timestamps: Vec<Value> = raw_timestamps
-        .into_iter()
-        .map(|timestamp| format_string_timestamp_rfc3339(timestamp))
-        .collect();
-    Ok(Value::Array(timestamps))
-}
-
-fn format_string_timestamp_rfc3339(raw_value: Value) -> Value {
-    match raw_value {
-        Value::String(string) => Value::String(
-            append_z_to_force_timestamp_rfc3339(string)),
-        variant => variant,
+    fn row_as_json_value(self) -> Value {
+        Value::Array(self.row)
     }
 }
 
-fn append_z_to_force_timestamp_rfc3339(mut timestamp: String) -> String {
-    timestamp.push_str("z");
-    timestamp
+impl<'de> Deserializer<'de> for JsonRowDeserializer {
+    type Error = serde_json::Error;
+
+    defer_base_deserialization!(row_as_json_value, deserialize_any);
+    defer_base_deserialization!(row_as_json_value, deserialize_bool);
+    defer_base_deserialization!(row_as_json_value, deserialize_i8);
+    defer_base_deserialization!(row_as_json_value, deserialize_i16);
+    defer_base_deserialization!(row_as_json_value, deserialize_i32);
+    defer_base_deserialization!(row_as_json_value, deserialize_i64);
+    defer_base_deserialization!(row_as_json_value, deserialize_u8);
+    defer_base_deserialization!(row_as_json_value, deserialize_u16);
+    defer_base_deserialization!(row_as_json_value, deserialize_u32);
+    defer_base_deserialization!(row_as_json_value, deserialize_u64);
+    defer_base_deserialization!(row_as_json_value, deserialize_f32);
+    defer_base_deserialization!(row_as_json_value, deserialize_f64);
+    defer_base_deserialization!(row_as_json_value, deserialize_char);
+    defer_base_deserialization!(row_as_json_value, deserialize_str);
+    defer_base_deserialization!(row_as_json_value, deserialize_string);
+    defer_base_deserialization!(row_as_json_value, deserialize_bytes);
+    defer_base_deserialization!(row_as_json_value, deserialize_byte_buf);
+    defer_base_deserialization!(row_as_json_value, deserialize_option);
+    defer_base_deserialization!(row_as_json_value, deserialize_unit);
+    defer_fieldless_struct_deserialization!(row_as_json_value, deserialize_unit_struct);
+    defer_fieldless_struct_deserialization!(row_as_json_value, deserialize_newtype_struct);
+    defer_base_deserialization!(row_as_json_value, deserialize_seq);
+    defer_base_deserialization!(row_as_json_value, deserialize_identifier);
+    defer_base_deserialization!(row_as_json_value, deserialize_ignored_any);
+
+
+    fn deserialize_tuple<V: Visitor<'de>>(self, len: usize, visitor: V) -> Result<V::Value> {
+        self.row_as_json_value().deserialize_tuple(len, visitor)
+    }
+
+    fn deserialize_tuple_struct<V: Visitor<'de>>(
+        self,
+        name: &'static str,
+        len: usize,
+        visitor: V,
+    ) -> Result<V::Value> {
+        self.row_as_json_value().deserialize_tuple_struct(name, len, visitor)
+    }
+
+    fn deserialize_map<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        visitor.visit_map(self)
+    }
+
+    fn deserialize_struct<V: Visitor<'de>>(
+        self,
+        _name: &'static str,
+        _fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value> {
+        visitor.visit_map(self)
+    }
+
+    fn deserialize_enum<V: Visitor<'de>>(
+        self,
+        name: &'static str,
+        variants: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value> {
+        self.row_as_json_value().deserialize_enum(name, variants, visitor)
+    }
 }
 
-fn decode_and_repack_hex_strings(
-    raw_value: Value
-) -> Result<Value> {
-    let raw_bytes_array: Vec<Value> = Deserialize::deserialize(raw_value)?;
-    let bytes_array: Vec<Value> = raw_bytes_array
-        .into_iter()
-        .map(|raw_byte_array| decode_and_repack_hex_string(raw_byte_array))
-        .collect::<Result<Vec<Value>>>()?;
-    Ok(Value::Array(bytes_array))
-}
+/// Provides key information from `RespSchema`.
+///
+/// As the row may need to be packed up into a `Value::Array` for
+/// deferred deserialization method, this implementation uses a `Vec`
+/// and navigates through the row backwards rather than converting
+/// it into an iterator.
+impl<'de> MapAccess<'de> for JsonRowDeserializer {
+    type Error = serde_json::Error;
 
-fn decode_and_repack_hex_string(raw_value: Value) -> Result<Value> {
-    Ok(match raw_value {
-        Value::String(hex) => repack_bytes_into_json(decode_hex_string(hex)?),
-        variant => variant,
-    })
-}
+    fn next_key_seed<K: DeserializeSeed<'de>>(
+        &mut self,
+        seed: K,
+    ) -> Result<Option<K::Value>> {
+        self.requested += 1;
+        if self.requested > self.schema.get_column_count() {
+            return Ok(None);
+        }
+        let column_index = self.schema.get_column_count() - self.requested;
+        let column_name = self.schema.get_column_name(column_index).unwrap();
+        seed.deserialize(Value::String(column_name.to_string())).map(Some)
+    }
 
-fn repack_bytes_into_json(bytes: Vec<u8>) -> Value {
-    let json_bytes: Vec<Value> = bytes
-        .into_iter()
-        .map(|b| Value::Number(Number::from(b)))
-        .collect();
-    Value::Array(json_bytes)
-}
-
-fn decode_hex_string(data: String) -> Result<Vec<u8>> {
-    hex::decode(data).map_err(serde_json::Error::custom)
+    fn next_value_seed<K: DeserializeSeed<'de>>(
+        &mut self,
+        seed: K,
+    ) -> Result<K::Value> {
+        let value = self.row.pop().ok_or_else(|| serde_json::Error::invalid_length(
+            self.requested, &format!("{:?}", self.schema).as_str()))?;
+        seed.deserialize(value)
+    }
 }
 
 #[cfg(test)]
 pub mod tests {
+    use std::collections::HashMap;
+    use std::iter::FromIterator;
     use serde_json::json;
 
     use crate::response::{
@@ -374,74 +420,6 @@ pub mod tests {
     use crate::tests::{date_time_utc_milli, to_string_vec};
 
     use super::*;
-
-    #[test]
-    fn sanitize_json_value_returns_string_unmodified() {
-        assert_eq!(sanitize_json_value(&StrT, json!("a")).unwrap(), json!("a"));
-        assert_eq!(sanitize_json_value(&StrAT, json!(["a", "b"])).unwrap(), json!(["a", "b"]));
-    }
-
-    #[test]
-    fn sanitize_json_value_returns_int_unmodified() {
-        assert_eq!(sanitize_json_value(&IntT, json!(1)).unwrap(), json!(1));
-        assert_eq!(sanitize_json_value(&IntAT, json!([1, 1])).unwrap(), json!([1, 1]));
-    }
-
-    #[test]
-    fn sanitize_json_value_returns_long_unmodified() {
-        assert_eq!(sanitize_json_value(&LngT, json!(1)).unwrap(), json!(1));
-        assert_eq!(sanitize_json_value(&LngAT, json!([1, 1])).unwrap(), json!([1, 1]));
-    }
-
-    #[test]
-    fn sanitize_json_value_returns_float_unmodified() {
-        assert_eq!(sanitize_json_value(&FltT, json!(1.1)).unwrap(), json!(1.1));
-        assert_eq!(sanitize_json_value(&FltAT, json!([1.1, 1.1])).unwrap(), json!([1.1, 1.1]));
-    }
-
-    #[test]
-    fn sanitize_json_value_returns_double_unmodified() {
-        assert_eq!(sanitize_json_value(&DubT, json!(1.1)).unwrap(), json!(1.1));
-        assert_eq!(sanitize_json_value(&DubAT, json!([1.1, 1.1])).unwrap(), json!([1.1, 1.1]));
-    }
-
-    #[test]
-    fn sanitize_json_value_returns_boolean_unmodified() {
-        assert_eq!(sanitize_json_value(&BooT, json!(true)).unwrap(), json!(true));
-        assert_eq!(sanitize_json_value(&BooAT, json!([true, false])).unwrap(), json!([true, false]));
-    }
-
-    #[test]
-    fn sanitize_json_value_converts_only_string_timestamps() {
-        assert_eq!(sanitize_json_value(&TimT, json!(123124)).unwrap(), json!(123124));
-        assert_eq!(
-            sanitize_json_value(&TimT, json!("1999-10-02 10:11:49.123")).unwrap(),
-            json!("1999-10-02 10:11:49.123z")
-        );
-        assert_eq!(
-            sanitize_json_value(&TimAT, json!([123124, "1949-10-02 10:11:49.1234"])).unwrap(),
-            json!([123124, "1949-10-02 10:11:49.1234z"])
-        );
-    }
-
-    #[test]
-    fn sanitize_json_value_converts_only_string_bytes() {
-        assert_eq!(sanitize_json_value(&BytT, json!([171])).unwrap(), json!([171]));
-        assert_eq!(sanitize_json_value(&BytT, json!("ab")).unwrap(), json!([171]));
-        assert_eq!(sanitize_json_value(&BytAT, json!([[171], "ab"])).unwrap(), json!([[171], [171]]));
-    }
-
-    #[test]
-    fn sanitize_json_value_converts_only_non_empty_string_json() {
-        assert_eq!(sanitize_json_value(&JsnT, json!("")).unwrap(), json!(""));
-        assert_eq!(sanitize_json_value(&JsnT, json!(171)).unwrap(), json!(171));
-        assert_eq!(sanitize_json_value(&JsnT, json!("171")).unwrap(), json!(171));
-        assert_eq!(sanitize_json_value(&JsnT, json!([171])).unwrap(), json!([171]));
-        assert_eq!(sanitize_json_value(&JsnT, json!("[171]")).unwrap(), json!([171]));
-        assert_eq!(sanitize_json_value(&JsnT, json!("\"a\"")).unwrap(), json!("a"));
-        assert_eq!(sanitize_json_value(&JsnT, json!({"a": "b"})).unwrap(), json!({"a": "b"}));
-        assert_eq!(sanitize_json_value(&JsnT, json!("{\"a\": \"b\"}")).unwrap(), json!({"a": "b"}));
-    }
 
     #[test]
     fn deserialize_timestamp_handles_strings_and_epochs() {
@@ -708,5 +686,49 @@ pub mod tests {
             v_json_from_string: json!({"a": "b"}),
             v_json_as_string: "{\"a\": \"b\"}".to_string(),
         });
+    }
+
+    #[test]
+    fn pinot_row_deserializable_to_fieldless_struct() {
+        #[derive(Deserialize, PartialEq, Debug)]
+        struct TestRow(
+            i32,
+            #[serde(deserialize_with = "deserialize_json")]
+            Value,
+        );
+        let data_schema = RespSchema::from(RawRespSchema {
+            column_data_types: vec![IntT, JsnT],
+            column_names: to_string_vec(vec!["v_int", "v_json"]),
+        });
+        let values = vec![json!(1), json!({"a": "b"})];
+        let test_row = TestRow::from_row(&data_schema, values).unwrap();
+        assert_eq!(test_row, TestRow(1, json!({"a": "b"})));
+    }
+
+    #[test]
+    fn pinot_row_deserializable_to_map() {
+        type TestRow = HashMap<String, String>;
+        let data_schema = RespSchema::from(RawRespSchema {
+            column_data_types: vec![IntT, StrT],
+            column_names: to_string_vec(vec!["v_int", "v_string"]),
+        });
+        let values = vec![json!("1"), json!("name")];
+        let test_row = TestRow::from_row(&data_schema, values).unwrap();
+        assert_eq!(test_row, TestRow::from_iter(vec![
+            ("v_int".to_string(), "1".to_string()),
+            ("v_string".to_string(), "name".to_string()),
+        ]));
+    }
+
+    #[test]
+    fn pinot_row_deserializable_to_fieldless_tuple() {
+        type TestRow = (i32, Value);
+        let data_schema = RespSchema::from(RawRespSchema {
+            column_data_types: vec![IntT, JsnT],
+            column_names: to_string_vec(vec!["v_int", "v_json"]),
+        });
+        let values = vec![json!(1), json!({"a": "b"})];
+        let test_row = TestRow::from_row(&data_schema, values).unwrap();
+        assert_eq!(test_row, (1, json!({"a": "b"})));
     }
 }
