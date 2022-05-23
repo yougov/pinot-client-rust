@@ -46,7 +46,7 @@ pub fn client_from_broker_list(
 ) -> Result<AsyncConnection<JsonAsyncHttpClientTransport, SimpleBrokerSelector>> {
     let tansport = JsonAsyncHttpClientTransport::new(
         reqwest::Client::new(),
-        extra_http_header.unwrap_or_else(|| HeaderMap::new()),
+        extra_http_header.unwrap_or_else(HeaderMap::new),
     );
     let broker_selector = SimpleBrokerSelector::new(broker_list)?;
     Ok(AsyncConnection::new(tansport, broker_selector))
@@ -59,7 +59,7 @@ pub fn client_from_zookeeper(
 ) -> Result<AsyncConnection<JsonAsyncHttpClientTransport, Arc<DynamicBrokerSelector>>> {
     let tansport = JsonAsyncHttpClientTransport::new(
         reqwest::Client::new(),
-        extra_http_header.unwrap_or_else(|| HeaderMap::new()),
+        extra_http_header.unwrap_or_else(HeaderMap::new),
     );
 
     let zk_conn = connect_to_zookeeper(zk_config)?;

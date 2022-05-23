@@ -6,8 +6,8 @@ use serde_json::{Result, Value};
 
 use crate::response::sql::{FromRow, RespSchema};
 
-const NEG_INFINITY_STRINGS: [&'static str; 3] = ["\"-Infinity\"", "-Infinity", "-∞"];
-const POS_INFINITY_STRINGS: [&'static str; 3] = ["\"Infinity\"", "Infinity", "∞"];
+const NEG_INFINITY_STRINGS: [&str; 3] = ["\"-Infinity\"", "-Infinity", "-∞"];
+const POS_INFINITY_STRINGS: [&str; 3] = ["\"Infinity\"", "Infinity", "∞"];
 
 /// Converts Pinot floats into `Vec<f32>` using `deserialize_floats_from_json()`.
 pub fn deserialize_floats<'de, D>(
@@ -36,7 +36,7 @@ pub fn deserialize_floats_from_json(raw_value: Value) -> Result<Vec<f32>> {
     let raw_floats: Vec<Value> = Deserialize::deserialize(raw_value)?;
     raw_floats
         .into_iter()
-        .map(|raw_float| deserialize_float_from_json(raw_float))
+        .map(deserialize_float_from_json)
         .collect()
 }
 
@@ -87,7 +87,7 @@ pub fn deserialize_doubles_from_json(raw_value: Value) -> Result<Vec<f64>> {
     let raw_doubles: Vec<Value> = Deserialize::deserialize(raw_value)?;
     raw_doubles
         .into_iter()
-        .map(|raw_double| deserialize_double_from_json(raw_double))
+        .map(deserialize_double_from_json)
         .collect()
 }
 
@@ -140,7 +140,7 @@ pub fn deserialize_timestamps_from_json(
     let raw_dates: Vec<Value> = Deserialize::deserialize(raw_value)?;
     raw_dates
         .into_iter()
-        .map(|raw_date| deserialize_timestamp_from_json(raw_date))
+        .map(deserialize_timestamp_from_json)
         .collect()
 }
 
@@ -162,7 +162,7 @@ pub fn deserialize_timestamp_from_json(raw_value: Value) -> Result<DateTime<Utc>
 }
 
 fn append_z_to_force_timestamp_rfc3339(mut timestamp: String) -> String {
-    timestamp.push_str("z");
+    timestamp.push('z');
     timestamp
 }
 
@@ -195,7 +195,7 @@ pub fn deserialize_bytes_array_from_json(
     let raw_values: Vec<Value> = Deserialize::deserialize(raw_data)?;
     raw_values
         .into_iter()
-        .map(|raw_value| deserialize_bytes_from_json(raw_value))
+        .map(deserialize_bytes_from_json)
         .collect()
 }
 

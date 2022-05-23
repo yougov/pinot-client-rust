@@ -4,7 +4,7 @@ use crate::response::ResponseStats;
 use super::Exception;
 
 /// PqlBrokerResponse is the data structure for broker response to a PQL query.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PqlBrokerResponse {
     pub aggregation_results: Vec<AggregationResult>,
     pub selection_results: Option<SelectionResults>,

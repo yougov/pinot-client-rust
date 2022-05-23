@@ -1,7 +1,7 @@
 use rand::prelude::*;
 
 pub fn random_element<T>(list: &Vec<T>) -> Option<&T> {
-    if list.len() > 0 {
+    if !list.is_empty() {
         Some(&list[rand::thread_rng().gen_range(0..list.len())])
     } else {
         None
@@ -9,10 +9,7 @@ pub fn random_element<T>(list: &Vec<T>) -> Option<&T> {
 }
 
 pub fn clone_random_element<T: Clone>(list: &Vec<T>) -> Option<T> {
-    match random_element(&list) {
-        Some(e) => Some(e.clone()),
-        None => None,
-    }
+    random_element(list).cloned()
 }
 
 #[cfg(test)]

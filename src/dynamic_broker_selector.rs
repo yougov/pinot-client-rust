@@ -71,7 +71,7 @@ fn set_up_dynamic_broker_selector_external_view_watcher(
     tx: Sender<()>,
 ) -> Result<()> {
     set_up_node_watcher(
-        &zk_conn,
+        zk_conn,
         external_view_zk_path,
         log_and_discard_error_node_watcher(
             "Refresh dynamic broker external view",
@@ -110,7 +110,7 @@ fn looping_receiver<T>(
     loop {
         log_error(&msg, || {
             let event: T = rx.recv()
-                .map_err(|e| DynamicBrokerSelectorError::FailedReceiveRefreshEvent(e))?;
+                .map_err(DynamicBrokerSelectorError::FailedReceiveRefreshEvent)?;
             func(event)?;
             Ok(())
         });
@@ -151,7 +151,7 @@ impl DynamicBrokerSelector {
         match self.read_table_broker_map()?.get(table_name) {
             None => Err(Error::NoAvailableBrokerForTable(table_name.to_string())),
             Some(broker_list) => {
-                let broker = clone_random_element(&broker_list);
+                let broker = clone_random_element(broker_list);
                 match broker {
                     None => Err(Error::NoAvailableBrokerForTable(table_name.to_string())),
                     Some(broker) => Ok(broker),
@@ -254,7 +254,7 @@ fn extract_brokers(broker_map: &HashMap<String, String>) -> Vec<String> {
 }
 
 fn extract_broker_host_port(broker_key: &str) -> Result<(String, u64)> {
-    let splits: Vec<&str> = broker_key.split("_").collect();
+    let splits: Vec<&str> = broker_key.split('_').collect();
     let last_index = splits.len() - 1;
     if last_index < 1 {
         return Err(Error::InvalidBrokerKey(broker_key.to_string()));

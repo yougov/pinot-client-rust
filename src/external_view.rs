@@ -35,7 +35,7 @@ pub fn get_external_view(
 
 fn decode_external_view(external_view_bytes: &[u8]) -> Result<ExternalView> {
     let result: ExternalView = serde_json::from_slice(external_view_bytes)
-        .map_err(|e| Error::FailedJsonDeserialization(e))?;
+        .map_err(Error::FailedJsonDeserialization)?;
     Ok(result)
 }
 

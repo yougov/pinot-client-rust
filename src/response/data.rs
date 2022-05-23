@@ -32,8 +32,7 @@ impl DataRow {
 
     /// Returns a `Data` entry given a column index
     pub fn get_data(&self, column_index: usize) -> Result<&Data> {
-        self.row.get(column_index)
-            .ok_or_else(|| Error::InvalidResultColumnIndex(column_index))
+        self.row.get(column_index).ok_or(Error::InvalidResultColumnIndex(column_index))
     }
 
     /// Convenience method that returns a int entry by calling `Data::get_int()`
@@ -135,7 +134,7 @@ fn deserialize_data(
     raw_data: Value,
 ) -> std::result::Result<Data, serde_json::Error> {
     if raw_data.is_null() {
-        return Ok(Data::Null(data_type.clone()));
+        return Ok(Data::Null(*data_type));
     }
     let data = match data_type {
         DataType::Int => Data::Int(Deserialize::deserialize(raw_data)?),
@@ -209,14 +208,14 @@ impl Data {
             Self::TimestampArray(_) => DataType::TimestampArray,
             Self::StringArray(_) => DataType::StringArray,
             Self::BytesArray(_) => DataType::BytesArray,
-            Self::Null(data_type) => data_type.clone(),
+            Self::Null(data_type) => *data_type,
         }
     }
 
     /// Returns as int
     pub fn get_int(&self) -> Result<i32> {
         match self {
-            Self::Int(v) => Ok(v.clone()),
+            Self::Int(v) => Ok(*v),
             _ => Err(Error::IncorrectResultDataType {
                 requested: DataType::Int,
                 actual: self.data_type(),
@@ -227,7 +226,7 @@ impl Data {
     /// Returns as long
     pub fn get_long(&self) -> Result<i64> {
         match self {
-            Self::Long(v) => Ok(v.clone()),
+            Self::Long(v) => Ok(*v),
             _ => Err(Error::IncorrectResultDataType {
                 requested: DataType::Long,
                 actual: self.data_type(),
@@ -238,7 +237,7 @@ impl Data {
     /// Returns as float
     pub fn get_float(&self) -> Result<f32> {
         match self {
-            Self::Float(v) => Ok(v.clone()),
+            Self::Float(v) => Ok(*v),
             _ => Err(Error::IncorrectResultDataType {
                 requested: DataType::Float,
                 actual: self.data_type(),
@@ -249,7 +248,7 @@ impl Data {
     /// Returns as double
     pub fn get_double(&self) -> Result<f64> {
         match self {
-            Self::Double(v) => Ok(v.clone()),
+            Self::Double(v) => Ok(*v),
             _ => Err(Error::IncorrectResultDataType {
                 requested: DataType::Double,
                 actual: self.data_type(),
@@ -260,7 +259,7 @@ impl Data {
     /// Returns as boolean
     pub fn get_boolean(&self) -> Result<bool> {
         match self {
-            Self::Boolean(v) => Ok(v.clone()),
+            Self::Boolean(v) => Ok(*v),
             _ => Err(Error::IncorrectResultDataType {
                 requested: DataType::Boolean,
                 actual: self.data_type(),
@@ -271,7 +270,7 @@ impl Data {
     /// Returns as time stamp (`i64` where 0 is 1970-01-01 00:00:00...)
     pub fn get_timestamp(&self) -> Result<DateTime<Utc>> {
         match self {
-            Self::Timestamp(v) => Ok(v.clone()),
+            Self::Timestamp(v) => Ok(*v),
             _ => Err(Error::IncorrectResultDataType {
                 requested: DataType::Timestamp,
                 actual: self.data_type(),
@@ -314,10 +313,7 @@ impl Data {
 
     /// Convenience method to determine if is of type `Data::Null`
     pub fn is_null(&self) -> bool {
-        match self {
-            Self::Null(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::Null(_))
     }
 }
 

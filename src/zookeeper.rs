@@ -64,7 +64,7 @@ pub fn set_up_node_watcher<W: 'static + Watcher>(
 
 pub fn log_and_discard_error_node_watcher(
     name: &str, on_event: impl Fn(WatchedEvent) -> Result<()>,
-) -> impl Fn(WatchedEvent) -> () {
+) -> impl Fn(WatchedEvent) {
     let name = name.to_string();
     move |event: WatchedEvent| {
         if let Err(e) = on_event(event) {

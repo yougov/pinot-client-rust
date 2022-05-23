@@ -7,7 +7,7 @@ use crate::errors::{Error, Result};
 use crate::response::{DataType, Exception};
 
 /// RawBrokerResponse is the data structure for a broker response to any query.
-#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct RawBrokerResponse {
     #[serde(default)]
     #[serde(rename(deserialize = "aggregationResults"))]
@@ -65,14 +65,14 @@ pub struct AggregationResult {
 }
 
 /// GroupValue is the data structure for PQL aggregation GroupBy result
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct GroupValue {
     pub value: String,
     pub group: Vec<String>,
 }
 
 /// SelectionResults is the data structure for PQL selection result
-#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct SelectionResults {
     columns: Vec<String>,
     results: Vec<Vec<Value>>,
@@ -97,24 +97,24 @@ impl SelectionResults {
     pub fn get_column_name(&self, column_index: usize) -> Result<&str> {
         self.columns.get(column_index)
             .map(|column| column.as_str())
-            .ok_or_else(|| Error::InvalidResultColumnIndex(column_index))
+            .ok_or(Error::InvalidResultColumnIndex(column_index))
     }
 
     /// Returns a row given a row index
     pub fn get_row(&self, row_index: usize) -> Result<&Vec<Value>> {
         self.results.get(row_index)
-            .ok_or_else(|| Error::InvalidResultRowIndex(row_index))
+            .ok_or(Error::InvalidResultRowIndex(row_index))
     }
 
     /// Returns a json `Value` entry given row index and column index
     pub fn get_data(&self, row_index: usize, column_index: usize) -> Result<&Value> {
         self.get_row(row_index)?.get(column_index)
-            .ok_or_else(|| Error::InvalidResultColumnIndex(column_index))
+            .ok_or(Error::InvalidResultColumnIndex(column_index))
     }
 }
 
 /// ResultTable is the holder for SQL queries.
-#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct RawResultTable {
     #[serde(rename(deserialize = "dataSchema"))]
     pub data_schema: RawRespSchema,
@@ -122,7 +122,7 @@ pub struct RawResultTable {
 }
 
 /// RespSchema is a response schema as returned by pinot
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct RawRespSchema {
     #[serde(rename(deserialize = "columnDataTypes"))]
     pub column_data_types: Vec<DataType>,

@@ -80,8 +80,7 @@ impl<T: FromRow> ResultTable<T> {
 
     /// Returns a row given a row index
     pub fn get_row(&self, row_index: usize) -> Result<&T> {
-        self.rows.get(row_index)
-            .ok_or_else(|| Error::InvalidResultRowIndex(row_index))
+        self.rows.get(row_index).ok_or(Error::InvalidResultRowIndex(row_index))
     }
 }
 
@@ -120,21 +119,21 @@ impl RespSchema {
     pub fn get_column_name(&self, column_index: usize) -> Result<&str> {
         self.column_name_to_index.get_by_right(&column_index)
             .map(|column| column.as_str())
-            .ok_or_else(|| Error::InvalidResultColumnIndex(column_index))
+            .ok_or(Error::InvalidResultColumnIndex(column_index))
     }
 
     /// Returns column index given a column name
     pub fn get_column_index(&self, column_name: &str) -> Result<usize> {
         self.column_name_to_index.get_by_left(column_name)
-            .map(|column_index| column_index.clone())
+            .copied()
             .ok_or_else(|| Error::InvalidResultColumnName(column_name.to_string()))
     }
 
     /// Returns column data type given a column index
     pub fn get_column_data_type(&self, column_index: usize) -> Result<DataType> {
         self.column_data_types.get(column_index)
-            .map(|column| column.clone())
-            .ok_or_else(|| Error::InvalidResultColumnIndex(column_index))
+            .copied()
+            .ok_or(Error::InvalidResultColumnIndex(column_index))
     }
 
     /// Returns column data type given a column index

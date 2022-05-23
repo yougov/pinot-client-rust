@@ -13,7 +13,7 @@ pub mod sql;
 pub mod deserialise;
 
 /// Pinot exception.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct Exception {
     #[serde(rename(deserialize = "errorCode"))]
     pub error_code: i32,
@@ -21,7 +21,7 @@ pub struct Exception {
 }
 
 /// ResponseStats carries all stats returned by a query.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResponseStats {
     pub trace_info: HashMap<String, String>,
     pub num_servers_queried: i32,
@@ -40,7 +40,7 @@ pub struct ResponseStats {
 }
 
 /// Pinot native types
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum DataType {
     Int,
     Long,
