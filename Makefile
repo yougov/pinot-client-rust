@@ -27,7 +27,7 @@ lint: touch  ## Run lint
 
 .PHONY: build
 build:  ## Build project
-	cargo build
+	cargo build --all-targets --all-features
 
 .PHONY: prepare-pinot-cluster
 prepare-pinot-cluster:  ## Set-up basic pinot cluster
@@ -52,6 +52,6 @@ destroy-pinot:  ## Tear down basic pinot cluster
 
 .PHONY: test
 test: prepare-pinot  ## Run tests
-	-cargo test
+	-cargo test --all-targets --all-features
 	$(MAKE) destroy-pinot
 
