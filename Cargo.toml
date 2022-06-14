@@ -1,7 +1,9 @@
 [package]
 name = "pinot-client-rust"
+description = "A rust library to query Apache Pinot."
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 [features]
 async = []

@@ -5,7 +5,7 @@ Pinot Client Rust
 
 ---
 
-Applications can use this rust client library to query Apache Pinot.
+A rust library to query Apache Pinot.
 
 Installing Pinot
 ================
