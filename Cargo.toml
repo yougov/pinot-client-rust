@@ -3,6 +3,9 @@ name = "pinot-client-rust"
 description = "A rust library to query Apache Pinot."
 version = "0.1.0"
 edition = "2021"
+readme = "README.md"
+homepage = "https://github.com/yougov/pinot-client-rust"
+repository = "https://github.com/yougov/pinot-client-rust"
 license = "MIT"
 
 [features]
