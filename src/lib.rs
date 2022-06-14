@@ -87,6 +87,24 @@ Meanwhile `pinot_client_rust::response::ResultTable` is the holder for SQL queri
 
  */
 
+#[cfg(feature = "async")]
+pub use async_client_transport::AsyncClientTransport;
+#[cfg(feature = "async")]
+pub use async_connection::AsyncConnection;
+pub use broker_selector::BrokerSelector;
+pub use client_transport::ClientTransport;
+pub use connection::Connection;
+pub use dynamic_broker_selector::DynamicBrokerSelector;
+pub use errors::{Error, Result};
+pub use external_view::ExternalView;
+#[cfg(feature = "async")]
+pub use json_async_http_client_transport::JsonAsyncHttpClientTransport;
+pub use json_http_client_transport::JsonHttpClientTransport;
+pub use request::Request;
+pub use simple_broker_selector::SimpleBrokerSelector;
+
+pub use crate::zookeeper::ZookeeperConfig;
+
 pub mod async_client_transport;
 pub mod async_connection;
 pub mod broker_selector;

@@ -46,6 +46,9 @@ pub enum DynamicBrokerSelectorError {
     PoisonedConcurrentTableBrokerMapWrite,
 }
 
+/// Creates a thread to monitor and update a
+/// Dynamic Broker Selector based on external
+/// view changes.
 pub(crate) fn auto_refreshing_dynamic_broker_selector(
     zk_conn: ZooKeeper,
     external_view_zk_path: String,
