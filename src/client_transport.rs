@@ -2,10 +2,15 @@ use crate::errors::Result;
 use crate::response::PqlBrokerResponse;
 use crate::response::sql::{FromRow, SqlBrokerResponse};
 
+/// A client transport that communicates with a Pinot cluster
+/// given a broker address
 pub trait ClientTransport {
+    /// Execute SQL
     fn execute_sql<T: FromRow>(
         &self, broker_address: &str, query: &str,
     ) -> Result<SqlBrokerResponse<T>>;
+
+    /// Execute PQL
     fn execute_pql(
         &self, broker_address: &str, query: &str,
     ) -> Result<PqlBrokerResponse>;

@@ -46,7 +46,7 @@ pub enum DynamicBrokerSelectorError {
     PoisonedConcurrentTableBrokerMapWrite,
 }
 
-pub fn auto_refreshing_dynamic_broker_selector(
+pub(crate) fn auto_refreshing_dynamic_broker_selector(
     zk_conn: ZooKeeper,
     external_view_zk_path: String,
     receiver_timeout: std::time::Duration,
@@ -118,6 +118,9 @@ fn looping_receiver<T>(
     }
 }
 
+/// A dynamic broke a selector keeps a list of all brokers
+/// and a table to broker list map based on an external view
+/// collected from Zookeeper.
 pub struct DynamicBrokerSelector {
     table_broker_map: RwLock<TableBrokerMap>,
     all_broker_list: RwLock<AllBrokerList>,
@@ -134,6 +137,7 @@ impl DynamicBrokerSelector {
         Self { table_broker_map, all_broker_list }
     }
 
+    /// Refresh the list of brokers based on an updated external view
     pub fn refresh_external_view(
         &self,
         external_view: &ExternalView,
@@ -147,6 +151,7 @@ impl DynamicBrokerSelector {
         Ok(())
     }
 
+    /// Select a random broker given a table name
     pub fn select_random_broker_by_table_name(&self, table_name: &str) -> Result<String> {
         match self.read_table_broker_map()?.get(table_name) {
             None => Err(Error::NoAvailableBrokerForTable(table_name.to_string())),
@@ -160,6 +165,7 @@ impl DynamicBrokerSelector {
         }
     }
 
+    /// Select a random broker without respect to table name
     pub fn select_random_broker(&self) -> Result<String> {
         let broker_list = self.read_all_broker_list()?;
         let broker = clone_random_element(&broker_list);

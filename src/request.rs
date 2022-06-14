@@ -57,7 +57,7 @@ impl serde::Serialize for Request {
     }
 }
 
-pub fn encode_query_address(broker_address: &str, query_format: &QueryFormat) -> String {
+pub(crate) fn encode_query_address(broker_address: &str, query_format: &QueryFormat) -> String {
     let query_address = match query_format {
         QueryFormat::PQL => format!("{}/query", broker_address),
         QueryFormat::SQL => format!("{}/query/sql", broker_address),

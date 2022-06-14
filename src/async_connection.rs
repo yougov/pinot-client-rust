@@ -28,13 +28,14 @@ impl<CT: AsyncClientTransport, BS: BrokerSelector> AsyncConnection<CT, BS> {
     }
 }
 
-/// ExecuteSQL for a given table
 impl<CT: AsyncClientTransport, BS: BrokerSelector> AsyncConnection<CT, BS> {
+    /// Execute SQL for a given table
     pub async fn execute_sql<T: FromRow>(&self, table: &str, query: &str) -> Result<SqlBrokerResponse<T>> {
         let broker_address = self.broker_selector.select_broker(table)?;
         self.transport.execute_sql(&broker_address, query).await
     }
 
+    /// Execute PQL for a given table
     pub async fn execute_pql(&self, table: &str, query: &str) -> Result<PqlBrokerResponse> {
         let broker_address = self.broker_selector.select_broker(table)?;
         self.transport.execute_pql(&broker_address, query).await

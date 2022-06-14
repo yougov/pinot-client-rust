@@ -11,6 +11,8 @@ pub enum SimpleBrokerSelectorError {
     EmptyBrokerList,
 }
 
+/// A naive broke a selector that takes a list
+/// of addresses from which it selects randomly.
 #[derive(Debug)]
 pub struct SimpleBrokerSelector {
     broker_list: Vec<String>,

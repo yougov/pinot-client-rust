@@ -36,6 +36,7 @@ impl ZookeeperConfig {
     }
 }
 
+/// Establish a connection with zookeeper
 pub fn connect_to_zookeeper(zk_config: &ZookeeperConfig) -> Result<ZooKeeper> {
     let zk_conn = ZooKeeper::connect(
         &zk_config.connect_string(),
@@ -45,11 +46,13 @@ pub fn connect_to_zookeeper(zk_config: &ZookeeperConfig) -> Result<ZooKeeper> {
     Ok(zk_conn)
 }
 
+/// Read a zookeeper node
 pub fn read_zookeeper_node(zk_conn: &ZooKeeper, path: &str) -> Result<Vec<u8>> {
     let (node, _) = zk_conn.get_data(path, false)?;
     Ok(node)
 }
 
+/// Set up a node watcher which reacts to changes on a node
 pub fn set_up_node_watcher<W: 'static + Watcher>(
     zk_conn: &ZooKeeper,
     path: &str,
@@ -62,6 +65,7 @@ pub fn set_up_node_watcher<W: 'static + Watcher>(
         )
 }
 
+/// Create node watcher that logs errors and ignores them
 pub fn log_and_discard_error_node_watcher(
     name: &str, on_event: impl Fn(WatchedEvent) -> Result<()>,
 ) -> impl Fn(WatchedEvent) {
@@ -73,6 +77,7 @@ pub fn log_and_discard_error_node_watcher(
     }
 }
 
+/// Call a provided function when the status of the node has changed
 pub fn on_node_status_changed(
     on_event: impl Fn(WatchedEvent) -> Result<()>,
 ) -> impl Fn(WatchedEvent) -> Result<()> {

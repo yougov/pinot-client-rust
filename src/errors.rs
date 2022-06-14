@@ -88,7 +88,7 @@ pub enum Error {
     UnavailableSimpleBrokerSelector(#[from] SimpleBrokerSelectorError),
 }
 
-pub fn log_error(
+pub(crate) fn log_error(
     msg: &str, func: impl Fn() -> Result<()>,
 ) {
     let msg = msg.to_string();

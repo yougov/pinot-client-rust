@@ -10,6 +10,7 @@ use super::errors::{Error, Result};
 
 const BROKER_EXTERNAL_VIEW_PATH: &str = "EXTERNALVIEW/brokerResource";
 
+/// A representation of the external view of the cluster
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 pub struct ExternalView {
     pub id: String,
@@ -21,10 +22,12 @@ pub struct ExternalView {
     pub list_fields: HashMap<String, Vec<String>>,
 }
 
+/// Format the external view path given a zookeeper config
 pub fn format_external_view_zk_path(zk_config: &ZookeeperConfig) -> String {
     format!("{}/{}", &zk_config.path_prefix, BROKER_EXTERNAL_VIEW_PATH)
 }
 
+/// Retrieve the external view given its address
 pub fn get_external_view(
     zk_conn: &ZooKeeper, external_view_zk_path: &str,
 ) -> Result<ExternalView> {

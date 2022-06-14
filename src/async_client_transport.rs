@@ -6,11 +6,16 @@ use crate::errors::Result;
 use crate::response::PqlBrokerResponse;
 use crate::response::sql::{FromRow, SqlBrokerResponse};
 
+/// An asynchronous client transport that communicates
+/// with a Pinot cluster given a broker address
 #[async_trait]
 pub trait AsyncClientTransport {
+    /// Execute SQL asynchronously
     async fn execute_sql<T: FromRow>(
         &self, broker_address: &str, query: &str,
     ) -> Result<SqlBrokerResponse<T>>;
+
+    /// Execute PQL asynchronously
     async fn execute_pql(
         &self, broker_address: &str, query: &str,
     ) -> Result<PqlBrokerResponse>;

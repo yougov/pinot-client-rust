@@ -1,5 +1,7 @@
 use super::errors::Result;
 
+/// A broker selector that provides a broker
+/// given a table name.
 pub trait BrokerSelector {
     /// Returns the broker address in the form host:port
     fn select_broker(&self, table: &str) -> Result<String>;
