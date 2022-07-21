@@ -82,6 +82,11 @@ impl<T: FromRow> ResultTable<T> {
     pub fn get_row(&self, row_index: usize) -> Result<&T> {
         self.rows.get(row_index).ok_or(Error::InvalidResultRowIndex(row_index))
     }
+
+    /// Converts result table into rows vector
+    pub fn into_rows(self) -> Vec<T> {
+        self.rows
+    }
 }
 
 impl<T: FromRow> From<RawResultTable> for Result<ResultTable<T>> {
