@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use serde::Deserialize;
+use serde::Serialize;
 use serde_json::Value;
 
 use crate::errors::{Error, Result};
@@ -51,7 +52,7 @@ pub struct RawBrokerResponse {
 }
 
 /// AggregationResult is the data structure for PQL aggregation result
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct AggregationResult {
     pub function: String,
     #[serde(default)]
@@ -65,14 +66,14 @@ pub struct AggregationResult {
 }
 
 /// GroupValue is the data structure for PQL aggregation GroupBy result
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct GroupValue {
     pub value: String,
     pub group: Vec<String>,
 }
 
 /// SelectionResults is the data structure for PQL selection result
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct SelectionResults {
     columns: Vec<String>,
     results: Vec<Vec<Value>>,
@@ -133,6 +134,7 @@ pub struct RawRespSchema {
 #[cfg(test)]
 pub mod tests {
     use serde_json::json;
+
     use crate::response::{
         DataType::Double as DubT,
         DataType::Long as LngT,

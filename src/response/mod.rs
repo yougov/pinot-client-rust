@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use serde::de::Error as SerdeError;
 use serde::Deserialize;
+use serde::Serialize;
 
 pub use pql::PqlBrokerResponse;
 pub use sql::SqlBrokerResponse;
@@ -13,7 +14,7 @@ pub mod sql;
 pub mod deserialise;
 
 /// Pinot exception.
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Exception {
     #[serde(rename(deserialize = "errorCode"))]
     pub error_code: i32,
@@ -21,7 +22,7 @@ pub struct Exception {
 }
 
 /// ResponseStats carries all stats returned by a query.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct ResponseStats {
     pub trace_info: HashMap<String, String>,
     pub num_servers_queried: i32,
@@ -40,7 +41,7 @@ pub struct ResponseStats {
 }
 
 /// Pinot native types
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize)]
 pub enum DataType {
     Int,
     Long,

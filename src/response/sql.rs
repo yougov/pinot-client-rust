@@ -1,4 +1,5 @@
 use bimap::BiMap;
+use serde::Serialize;
 use serde_json::Value;
 
 use crate::errors::{Error, Result};
@@ -87,6 +88,11 @@ impl<T: FromRow> ResultTable<T> {
     pub fn into_rows(self) -> Vec<T> {
         self.rows
     }
+
+    /// Converts result table into a `RespSchema` and rows vector
+    pub fn into_schema_and_rows(self) -> (RespSchema, Vec<T>) {
+        (self.data_schema, self.rows)
+    }
 }
 
 impl<T: FromRow> From<RawResultTable> for Result<ResultTable<T>> {
@@ -101,7 +107,7 @@ impl<T: FromRow> From<RawResultTable> for Result<ResultTable<T>> {
 }
 
 /// RespSchema is response schema with a bimap to allow easy name <-> index retrieval
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct RespSchema {
     column_data_types: Vec<DataType>,
     column_name_to_index: bimap::BiMap::<String, usize>,
