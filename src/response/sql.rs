@@ -1,5 +1,5 @@
 use bimap::BiMap;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::errors::{Error, Result};
@@ -9,7 +9,7 @@ use crate::response::raw::{RawBrokerResponse, RawRespSchema, RawResultTable};
 use super::Exception;
 
 /// SqlBrokerResponse is the data structure for a broker response to an SQL query.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct SqlBrokerResponse<T: FromRow> {
     pub result_table: Option<ResultTable<T>>,
     pub exceptions: Vec<Exception>,
@@ -55,7 +55,7 @@ pub trait FromRow: Sized {
 }
 
 /// ResultTable is the holder for SQL queries.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct ResultTable<T: FromRow> {
     data_schema: RespSchema,
     rows: Vec<T>,
@@ -107,7 +107,7 @@ impl<T: FromRow> From<RawResultTable> for Result<ResultTable<T>> {
 }
 
 /// RespSchema is response schema with a bimap to allow easy name <-> index retrieval
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct RespSchema {
     column_data_types: Vec<DataType>,
     column_name_to_index: bimap::BiMap::<String, usize>,
@@ -167,7 +167,7 @@ impl From<RawRespSchema> for RespSchema {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use std::iter::FromIterator;
 
     use serde::Deserialize;

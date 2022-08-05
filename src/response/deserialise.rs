@@ -392,7 +392,7 @@ impl<'de> MapAccess<'de> for JsonRowDeserializer {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use std::collections::HashMap;
     use std::iter::FromIterator;
     use serde_json::json;

@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::response::raw::{AggregationResult, RawBrokerResponse, SelectionResults};
 use crate::response::ResponseStats;
@@ -6,7 +6,7 @@ use crate::response::ResponseStats;
 use super::Exception;
 
 /// PqlBrokerResponse is the data structure for broker response to a PQL query.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct PqlBrokerResponse {
     pub aggregation_results: Vec<AggregationResult>,
     pub selection_results: Option<SelectionResults>,
@@ -41,7 +41,7 @@ impl From<RawBrokerResponse> for PqlBrokerResponse {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use serde_json::json;
 
     use crate::response::pql::SelectionResults;

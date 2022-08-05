@@ -71,7 +71,7 @@ pub fn client_from_zookeeper(
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use http::HeaderValue;
 
     use crate::broker_selector::tests::TestBrokerSelector;

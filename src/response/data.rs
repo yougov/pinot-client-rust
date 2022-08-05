@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::de::Error as SerdeError;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::errors::{Error, Result};
@@ -20,7 +20,7 @@ use crate::response::deserialise::{
 use super::sql::{FromRow, RespSchema};
 
 /// A row of `Data`
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct DataRow {
     row: Vec<Data>,
 }
@@ -166,7 +166,7 @@ fn deserialize_data(
 }
 
 /// Typed Pinot data
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub enum Data {
     Int(i32),
     Long(i64),
@@ -318,7 +318,7 @@ impl Data {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use std::iter::FromIterator;
 
     use bimap::BiMap;

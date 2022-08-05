@@ -8,7 +8,7 @@ pub trait BrokerSelector {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use super::*;
 
     pub struct TestBrokerSelector {

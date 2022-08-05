@@ -32,7 +32,7 @@ impl AsyncClientTransport for JsonAsyncHttpClientTransport {
         &self, broker_address: &str, query: &str,
     ) -> Result<SqlBrokerResponse<T>> {
         let query = Request::new(QueryFormat::SQL, query);
-        let response = execute_blocking_http_request(
+        let response = execute_http_request(
             broker_address, &query, &self.header, &self.client,
         ).await?;
         let raw_broker_response: RawBrokerResponse = response.json()
@@ -43,7 +43,7 @@ impl AsyncClientTransport for JsonAsyncHttpClientTransport {
 
     async fn execute_pql(&self, broker_address: &str, query: &str) -> Result<PqlBrokerResponse> {
         let query = Request::new(QueryFormat::PQL, query);
-        let response = execute_blocking_http_request(
+        let response = execute_http_request(
             broker_address, &query, &self.header, &self.client,
         ).await?;
         let raw_broker_response: RawBrokerResponse = response.json()
@@ -53,7 +53,7 @@ impl AsyncClientTransport for JsonAsyncHttpClientTransport {
     }
 }
 
-async fn execute_blocking_http_request(
+async fn execute_http_request(
     broker_address: &str,
     query: &Request,
     header: &http::HeaderMap,

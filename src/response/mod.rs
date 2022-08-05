@@ -22,7 +22,7 @@ pub struct Exception {
 }
 
 /// ResponseStats carries all stats returned by a query.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ResponseStats {
     pub trace_info: HashMap<String, String>,
     pub num_servers_queried: i32,
@@ -95,7 +95,7 @@ impl<'de> Deserialize<'de> for DataType {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use serde_json::{json, Value};
 
     use crate::response::{PqlBrokerResponse, ResponseStats};

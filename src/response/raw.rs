@@ -9,7 +9,7 @@ use crate::response::{DataType, Exception};
 
 /// RawBrokerResponse is the data structure for a broker response to any query.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
-pub struct RawBrokerResponse {
+pub(crate) struct RawBrokerResponse {
     #[serde(default)]
     #[serde(rename(deserialize = "aggregationResults"))]
     pub aggregation_results: Vec<AggregationResult>,
@@ -116,7 +116,7 @@ impl SelectionResults {
 
 /// ResultTable is the holder for SQL queries.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
-pub struct RawResultTable {
+pub(crate) struct RawResultTable {
     #[serde(rename(deserialize = "dataSchema"))]
     pub data_schema: RawRespSchema,
     pub rows: Vec<Vec<Value>>,
@@ -124,7 +124,7 @@ pub struct RawResultTable {
 
 /// RespSchema is a response schema as returned by pinot
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
-pub struct RawRespSchema {
+pub(crate) struct RawRespSchema {
     #[serde(rename(deserialize = "columnDataTypes"))]
     pub column_data_types: Vec<DataType>,
     #[serde(rename(deserialize = "columnNames"))]
@@ -132,7 +132,7 @@ pub struct RawRespSchema {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use serde_json::json;
 
     use crate::response::{

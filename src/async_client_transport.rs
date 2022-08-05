@@ -22,7 +22,7 @@ pub trait AsyncClientTransport {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use std::sync::Mutex;
 
     use serde_json::Value;

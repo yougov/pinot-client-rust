@@ -17,7 +17,7 @@ pub trait ClientTransport {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use serde_json::Value;
     use crate::response::raw::RawBrokerResponse;
 

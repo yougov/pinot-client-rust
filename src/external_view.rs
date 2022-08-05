@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json;
 use zookeeper::ZooKeeper;
 
@@ -11,7 +11,7 @@ use super::errors::{Error, Result};
 const BROKER_EXTERNAL_VIEW_PATH: &str = "EXTERNALVIEW/brokerResource";
 
 /// A representation of the external view of the cluster
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct ExternalView {
     pub id: String,
     #[serde(rename(deserialize = "simpleFields"))]
