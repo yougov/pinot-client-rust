@@ -1,5 +1,7 @@
 #![cfg(feature = "async")]
 
+use std::fmt::Debug;
+
 use async_trait::async_trait;
 
 use crate::errors::Result;
@@ -9,7 +11,7 @@ use crate::response::sql::{FromRow, SqlBrokerResponse};
 /// An asynchronous client transport that communicates
 /// with a Pinot cluster given a broker address
 #[async_trait]
-pub trait AsyncClientTransport {
+pub trait AsyncClientTransport: Clone + Debug {
     /// Execute SQL asynchronously
     async fn execute_sql<T: FromRow>(
         &self, broker_address: &str, query: &str,
@@ -23,7 +25,8 @@ pub trait AsyncClientTransport {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::sync::Mutex;
+    use std::fmt::Formatter;
+    use std::sync::{Arc, Mutex};
 
     use serde_json::Value;
 
@@ -31,9 +34,16 @@ pub(crate) mod tests {
 
     use super::*;
 
+    #[derive(Clone)]
     pub struct TestAsyncClientTransport {
-        sql_return_function: Mutex<Box<dyn Fn(&str, &str) -> Result<Value> + Send>>,
-        pql_return_function: Mutex<Box<dyn Fn(&str, &str) -> Result<PqlBrokerResponse> + Send>>,
+        sql_return_function: Arc<Mutex<Box<dyn Fn(&str, &str) -> Result<Value> + Send>>>,
+        pql_return_function: Arc<Mutex<Box<dyn Fn(&str, &str) -> Result<PqlBrokerResponse> + Send>>>,
+    }
+
+    impl Debug for TestAsyncClientTransport {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(f, "TestAsyncClientTransport")
+        }
     }
 
     impl TestAsyncClientTransport {
@@ -43,8 +53,8 @@ pub(crate) mod tests {
                 PqlFn: 'static + Fn(&str, &str) -> Result<PqlBrokerResponse> + Send,
         {
             Self {
-                sql_return_function: Mutex::new(Box::new(sql_return_function)),
-                pql_return_function: Mutex::new(Box::new(pql_return_function)),
+                sql_return_function: Arc::new(Mutex::new(Box::new(sql_return_function))),
+                pql_return_function: Arc::new(Mutex::new(Box::new(pql_return_function))),
             }
         }
     }

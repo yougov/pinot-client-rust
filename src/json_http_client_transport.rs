@@ -8,6 +8,7 @@ use crate::response::raw::RawBrokerResponse;
 use crate::response::sql::{FromRow, SqlBrokerResponse};
 
 /// An asynchronous json implementation of clientTransport
+#[derive(Clone, Debug)]
 pub struct JsonHttpClientTransport {
     client: reqwest::blocking::Client,
     header: http::HeaderMap,

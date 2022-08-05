@@ -3,7 +3,7 @@ use crate::errors::{Error, Result};
 use crate::rand::clone_random_element;
 
 /// Simple broker error.
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum SimpleBrokerSelectorError {
     /// Poisoned all broker list read.
@@ -13,7 +13,7 @@ pub enum SimpleBrokerSelectorError {
 
 /// A naive broke a selector that takes a list
 /// of addresses from which it selects randomly.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SimpleBrokerSelector {
     broker_list: Vec<String>,
 }

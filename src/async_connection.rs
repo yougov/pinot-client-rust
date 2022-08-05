@@ -17,6 +17,7 @@ use crate::simple_broker_selector::SimpleBrokerSelector;
 use crate::zookeeper::{connect_to_zookeeper, ZookeeperConfig};
 
 /// Connection to Pinot
+#[derive(Clone, Debug)]
 pub struct AsyncConnection<CT: AsyncClientTransport, BS: BrokerSelector> {
     transport: CT,
     broker_selector: BS,

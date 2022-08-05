@@ -124,9 +124,10 @@ fn looping_receiver<T>(
 /// A dynamic broke a selector keeps a list of all brokers
 /// and a table to broker list map based on an external view
 /// collected from Zookeeper.
+#[derive(Clone, Debug)]
 pub struct DynamicBrokerSelector {
-    table_broker_map: RwLock<TableBrokerMap>,
-    all_broker_list: RwLock<AllBrokerList>,
+    table_broker_map: Arc<RwLock<TableBrokerMap>>,
+    all_broker_list: Arc<RwLock<AllBrokerList>>,
 }
 
 impl DynamicBrokerSelector {
@@ -135,8 +136,8 @@ impl DynamicBrokerSelector {
     ) -> Self {
         let (table_broker_map, all_broker_list) =
             generate_new_broker_mapping_from_external_view(external_view);
-        let table_broker_map: RwLock<TableBrokerMap> = RwLock::new(table_broker_map);
-        let all_broker_list: RwLock<AllBrokerList> = RwLock::new(all_broker_list);
+        let table_broker_map = Arc::new(RwLock::new(table_broker_map));
+        let all_broker_list = Arc::new(RwLock::new(all_broker_list));
         Self { table_broker_map, all_broker_list }
     }
 
