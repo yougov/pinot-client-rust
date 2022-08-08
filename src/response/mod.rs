@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use serde::de::Error as SerdeError;
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 pub use pql::PqlBrokerResponse;
 pub use sql::SqlBrokerResponse;
@@ -41,7 +39,8 @@ pub struct ResponseStats {
 }
 
 /// Pinot native types
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum DataType {
     Int,
     Long,
@@ -62,38 +61,6 @@ pub enum DataType {
     BytesArray,
 }
 
-impl<'de> Deserialize<'de> for DataType {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-        where
-            D: serde::Deserializer<'de>,
-    {
-        let data_type: String = Deserialize::deserialize(deserializer)?;
-        let data_type = match data_type.as_str() {
-            "INT" => DataType::Int,
-            "LONG" => DataType::Long,
-            "FLOAT" => DataType::Float,
-            "DOUBLE" => DataType::Double,
-            "BOOLEAN" => DataType::Boolean,
-            "STRING" => DataType::String,
-            "TIMESTAMP" => DataType::Timestamp,
-            "JSON" => DataType::Json,
-            "BYTES" => DataType::Bytes,
-            "INT_ARRAY" => DataType::IntArray,
-            "LONG_ARRAY" => DataType::LongArray,
-            "FLOAT_ARRAY" => DataType::FloatArray,
-            "DOUBLE_ARRAY" => DataType::DoubleArray,
-            "BOOLEAN_ARRAY" => DataType::BooleanArray,
-            "STRING_ARRAY" => DataType::StringArray,
-            "TIMESTAMP_ARRAY" => DataType::TimestampArray,
-            "BYTES_ARRAY" => DataType::BytesArray,
-            variant => return Err(D::Error::unknown_variant(variant, &[
-                "INT", "LONG", "FLOAT", "DOUBLE", "BOOLEAN", "STRING", "TIMESTAMP", "JSON", "BYTES",
-            ])),
-        };
-        Ok(data_type)
-    }
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
     use serde_json::{json, Value};
@@ -104,6 +71,48 @@ pub(crate) mod tests {
     use crate::response::sql::SqlBrokerResponse;
     use crate::response::sql::tests::test_result_table;
     use crate::tests::to_string_vec;
+
+    use super::*;
+
+    #[test]
+    fn data_type_deserializes_correctly() {
+        assert_eq!(DataType::deserialize(json!("INT")).unwrap(), DataType::Int);
+        assert_eq!(DataType::deserialize(json!("LONG")).unwrap(), DataType::Long);
+        assert_eq!(DataType::deserialize(json!("DOUBLE")).unwrap(), DataType::Double);
+        assert_eq!(DataType::deserialize(json!("BOOLEAN")).unwrap(), DataType::Boolean);
+        assert_eq!(DataType::deserialize(json!("TIMESTAMP")).unwrap(), DataType::Timestamp);
+        assert_eq!(DataType::deserialize(json!("STRING")).unwrap(), DataType::String);
+        assert_eq!(DataType::deserialize(json!("JSON")).unwrap(), DataType::Json);
+        assert_eq!(DataType::deserialize(json!("BYTES")).unwrap(), DataType::Bytes);
+        assert_eq!(DataType::deserialize(json!("INT_ARRAY")).unwrap(), DataType::IntArray);
+        assert_eq!(DataType::deserialize(json!("LONG_ARRAY")).unwrap(), DataType::LongArray);
+        assert_eq!(DataType::deserialize(json!("FLOAT_ARRAY")).unwrap(), DataType::FloatArray);
+        assert_eq!(DataType::deserialize(json!("DOUBLE_ARRAY")).unwrap(), DataType::DoubleArray);
+        assert_eq!(DataType::deserialize(json!("BOOLEAN_ARRAY")).unwrap(), DataType::BooleanArray);
+        assert_eq!(DataType::deserialize(json!("TIMESTAMP_ARRAY")).unwrap(), DataType::TimestampArray);
+        assert_eq!(DataType::deserialize(json!("STRING_ARRAY")).unwrap(), DataType::StringArray);
+        assert_eq!(DataType::deserialize(json!("BYTES_ARRAY")).unwrap(), DataType::BytesArray);
+    }
+
+    #[test]
+    fn data_type_serializes_correctly() {
+        assert_eq!(serde_json::to_value(&DataType::Int).unwrap(), json!("INT"));
+        assert_eq!(serde_json::to_value(&DataType::Long).unwrap(), json!("LONG"));
+        assert_eq!(serde_json::to_value(&DataType::Double).unwrap(), json!("DOUBLE"));
+        assert_eq!(serde_json::to_value(&DataType::Boolean).unwrap(), json!("BOOLEAN"));
+        assert_eq!(serde_json::to_value(&DataType::Timestamp).unwrap(), json!("TIMESTAMP"));
+        assert_eq!(serde_json::to_value(&DataType::String).unwrap(), json!("STRING"));
+        assert_eq!(serde_json::to_value(&DataType::Json).unwrap(), json!("JSON"));
+        assert_eq!(serde_json::to_value(&DataType::Bytes).unwrap(), json!("BYTES"));
+        assert_eq!(serde_json::to_value(&DataType::IntArray).unwrap(), json!("INT_ARRAY"));
+        assert_eq!(serde_json::to_value(&DataType::LongArray).unwrap(), json!("LONG_ARRAY"));
+        assert_eq!(serde_json::to_value(&DataType::FloatArray).unwrap(), json!("FLOAT_ARRAY"));
+        assert_eq!(serde_json::to_value(&DataType::DoubleArray).unwrap(), json!("DOUBLE_ARRAY"));
+        assert_eq!(serde_json::to_value(&DataType::BooleanArray).unwrap(), json!("BOOLEAN_ARRAY"));
+        assert_eq!(serde_json::to_value(&DataType::TimestampArray).unwrap(), json!("TIMESTAMP_ARRAY"));
+        assert_eq!(serde_json::to_value(&DataType::StringArray).unwrap(), json!("STRING_ARRAY"));
+        assert_eq!(serde_json::to_value(&DataType::BytesArray).unwrap(), json!("BYTES_ARRAY"));
+    }
 
     pub fn test_broker_response_error_msg() -> String {
         let error_message: &str = concat!(

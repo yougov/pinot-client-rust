@@ -166,7 +166,7 @@ fn deserialize_data(
 }
 
 /// Typed Pinot data
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub enum Data {
     Int(i32),
     Long(i64),
