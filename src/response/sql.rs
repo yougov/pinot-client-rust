@@ -152,6 +152,20 @@ impl RespSchema {
         let column_index = self.get_column_index(column_name)?;
         self.get_column_data_type(column_index)
     }
+
+    /// Returns column data types
+    pub fn get_colum_data_types(&self) -> &[DataType] {
+        &self.column_data_types
+    }
+
+    /// Returns column data types
+    pub fn get_column_name_to_index_map(&self) -> &BiMap<String, usize> {
+        &self.column_name_to_index
+    }
+
+    pub fn into_data_types_and_name_to_index_map(self) -> (Vec<DataType>, BiMap<String, usize>) {
+        (self.column_data_types, self.column_name_to_index)
+    }
 }
 
 impl From<RawRespSchema> for RespSchema {
