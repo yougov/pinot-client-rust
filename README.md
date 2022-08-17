@@ -93,12 +93,14 @@ fn main() {
         "baseballStats",
         "select count(*) as cnt, sum(homeRuns) as sum_homeRuns from baseballStats group by teamID limit 10"
     ).unwrap();
-    log::info!(
-        "Query Stats: response time - {} ms, scanned docs - {}, total docs - {}",
-        broker_response.stats.time_used_ms,
-        broker_response.stats.num_docs_scanned,
-        broker_response.stats.total_docs,
-    );
+    if let Some(stats) = broker_response.stats {
+        log::info!(
+            "Query Stats: response time - {} ms, scanned docs - {}, total docs - {}",
+            stats.time_used_ms,
+            stats.num_docs_scanned,
+            stats.total_docs,
+        );
+    }
 }
 ```
 
@@ -160,8 +162,7 @@ pub struct ResponseStats {
 pub struct PqlBrokerResponse {
     pub aggregation_results: Vec<AggregationResult>,
     pub selection_results: Option<SelectionResults>,
-    pub exceptions: Vec<Exception>,
-    pub stats: ResponseStats,
+    pub stats: Option<ResponseStats>,
 }
 ```
 
@@ -174,8 +175,7 @@ pub struct PqlBrokerResponse {
 #[derive(Clone, Debug, PartialEq)]
 pub struct SqlBrokerResponse<T: FromRow> {
     pub result_table: Option<ResultTable<T>>,
-    pub exceptions: Vec<Exception>,
-    pub stats: ResponseStats,
+    pub stats: Option<ResponseStats>,
 }
 ```
 
