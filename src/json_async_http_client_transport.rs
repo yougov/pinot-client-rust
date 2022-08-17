@@ -8,7 +8,7 @@ use crate::errors::{Error, Result};
 use crate::request::{QueryFormat, Request};
 use crate::request::encode_query_address;
 use crate::response::pql::PqlBrokerResponse;
-use crate::response::raw::RawBrokerResponse;
+use crate::response::raw::{RawBrokerResponse, RawBrokerResponseWithoutStats};
 use crate::response::sql::{FromRow, SqlBrokerResponse};
 
 /// An asynchronous json implementation of clientTransport
@@ -30,27 +30,43 @@ impl JsonAsyncHttpClientTransport {
 #[async_trait]
 impl AsyncClientTransport for JsonAsyncHttpClientTransport {
     async fn execute_sql<T: FromRow>(
-        &self, broker_address: &str, query: &str,
+        &self, broker_address: &str, query: &str, include_stats: bool,
     ) -> Result<SqlBrokerResponse<T>> {
         let query = Request::new(QueryFormat::SQL, query);
         let response = execute_http_request(
             broker_address, &query, &self.header, &self.client,
         ).await?;
-        let raw_broker_response: RawBrokerResponse = response.json()
-            .await
-            .map_err(|e| Error::FailedRequest(query, e))?;
-        Result::from(raw_broker_response)
+        if include_stats {
+            let raw_broker_response: RawBrokerResponse = response.json()
+                .await
+                .map_err(|e| Error::FailedRequest(query, e))?;
+            Result::from(raw_broker_response)
+        } else {
+            let raw_broker_response: RawBrokerResponseWithoutStats = response.json()
+                .await
+                .map_err(|e| Error::FailedRequest(query, e))?;
+            Result::from(raw_broker_response)
+        }
     }
 
-    async fn execute_pql(&self, broker_address: &str, query: &str) -> Result<PqlBrokerResponse> {
+    async fn execute_pql(
+        &self, broker_address: &str, query: &str, include_stats: bool,
+    ) -> Result<PqlBrokerResponse> {
         let query = Request::new(QueryFormat::PQL, query);
         let response = execute_http_request(
             broker_address, &query, &self.header, &self.client,
         ).await?;
-        let raw_broker_response: RawBrokerResponse = response.json()
-            .await
-            .map_err(|e| Error::FailedRequest(query, e))?;
-        Ok(PqlBrokerResponse::from(raw_broker_response))
+        if include_stats {
+            let raw_broker_response: RawBrokerResponse = response.json()
+                .await
+                .map_err(|e| Error::FailedRequest(query, e))?;
+            Result::from(raw_broker_response)
+        } else {
+            let raw_broker_response: RawBrokerResponseWithoutStats = response.json()
+                .await
+                .map_err(|e| Error::FailedRequest(query, e))?;
+            Result::from(raw_broker_response)
+        }
     }
 }
 
@@ -138,7 +154,7 @@ mod test {
             HeaderMap::new(),
         );
         let response: SqlBrokerResponse<DataRow> = transport.execute_sql(
-            &test_broker_localhost_8099(), "SELECT * FROM scoreSheet",
+            &test_broker_localhost_8099(), "SELECT * FROM scoreSheet", true,
         ).await.unwrap();
         let result_table = response.result_table.unwrap();
 
@@ -186,7 +202,7 @@ mod test {
             HeaderMap::new(),
         );
         let response = transport.execute_pql(
-            &test_broker_localhost_8099(), "SELECT * FROM scoreSheet",
+            &test_broker_localhost_8099(), "SELECT * FROM scoreSheet", true,
         ).await.unwrap();
         let results = response.selection_results.unwrap();
         assert_eq!(results, SelectionResults::new(
@@ -221,7 +237,7 @@ mod test {
         );
         let query = "SELECT * FROM baseball_stats";
         let request = Request::new(QueryFormat::SQL, query);
-        let error = transport.execute_sql::<DataRow>("localhost:abcd", query).await.unwrap_err();
+        let error = transport.execute_sql::<DataRow>("localhost:abcd", query, true).await.unwrap_err();
         match error {
             Error::InvalidRequest(captured_request, _) => assert_eq!(captured_request, request),
             _ => panic!("Incorrect error kind"),
@@ -236,7 +252,7 @@ mod test {
         );
         let query = "SELECT * FROM baseball_stats";
         let request = Request::new(QueryFormat::PQL, query);
-        let error = transport.execute_pql("localhost:abcd", query).await.unwrap_err();
+        let error = transport.execute_pql("localhost:abcd", query, true).await.unwrap_err();
         match error {
             Error::InvalidRequest(captured_request, _) => assert_eq!(captured_request, request),
             _ => panic!("Incorrect error kind"),
@@ -251,7 +267,7 @@ mod test {
         );
         let query = "SELECT * FROM baseball_stats";
         let request = Request::new(QueryFormat::SQL, query);
-        let error = transport.execute_sql::<DataRow>("unknownhost:8000", query).await.unwrap_err();
+        let error = transport.execute_sql::<DataRow>("unknownhost:8000", query, true).await.unwrap_err();
         match error {
             Error::FailedRequest(captured_request, _) => assert_eq!(captured_request, request),
             _ => panic!("Incorrect error kind"),
@@ -266,7 +282,7 @@ mod test {
         );
         let query = "SELECT * FROM baseball_stats";
         let request = Request::new(QueryFormat::PQL, query);
-        let error = transport.execute_pql("unknownhost:8000", query).await.unwrap_err();
+        let error = transport.execute_pql("unknownhost:8000", query, true).await.unwrap_err();
         match error {
             Error::FailedRequest(captured_request, _) => assert_eq!(captured_request, request),
             _ => panic!("Incorrect error kind"),

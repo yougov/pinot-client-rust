@@ -29,23 +29,18 @@ lint: touch  ## Run lint
 build:  ## Build project
 	cargo build --all-targets --all-features
 
-.PHONY: prepare-pinot-cluster
-prepare-pinot-cluster:  ## Set-up basic pinot cluster
+.PHONY: create-pinot
+create-pinot:  ## Set-up basic pinot cluster
 	docker-compose up -d pinot-zookeeper pinot-controller pinot-broker pinot-server
 
-.PHONY: prepare-pinot-db
-prepare-pinot-db:  ## Set-up pinot table and test data
-	docker exec -it pinot-client-rust-pinot-controller bin/pinot-admin.sh AddTable   \
-		-tableConfigFile /db/score_sheet/offline_table.json   \
-		-schemaFile /db/score_sheet/schema.json -exec
-	docker exec -it pinot-client-rust-pinot-controller bin/pinot-admin.sh LaunchDataIngestionJob \
-		-jobSpecFile /db/score_sheet/job_spec.yaml
+.PHONY: populate-pinot
+populate-pinot:  ## Set-up pinot table and test data
+	cd scripts/test/pinot/;	./populate-db.sh
 
 .PHONY: prepare-pinot
 prepare-pinot:  ## Set-up basic pinot cluster and create table and test data
-	$(MAKE) prepare-pinot-cluster
-	sleep 30
-	$(MAKE) prepare-pinot-db
+	$(MAKE) create-pinot
+	$(MAKE) populate-pinot
 
 destroy-pinot:  ## Tear down basic pinot cluster
 	docker-compose down

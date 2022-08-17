@@ -51,6 +51,21 @@ pub(crate) struct RawBrokerResponse {
     pub min_consuming_freshness_time_ms: i64,
 }
 
+/// RawBrokerResponse is the data structure for a broker response to any query.
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+pub(crate) struct RawBrokerResponseWithoutStats {
+    #[serde(default)]
+    #[serde(rename(deserialize = "aggregationResults"))]
+    pub aggregation_results: Vec<AggregationResult>,
+    #[serde(default)]
+    #[serde(rename(deserialize = "selectionResults"))]
+    pub selection_results: Option<SelectionResults>,
+    #[serde(default)]
+    #[serde(rename(deserialize = "resultTable"))]
+    pub result_table: Option<RawResultTable>,
+    pub exceptions: Vec<Exception>,
+}
+
 /// AggregationResult is the data structure for PQL aggregation result
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct AggregationResult {
@@ -197,6 +212,43 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn pql_broker_response_deserializes_pql_aggregation_query_without_stats_correctly() {
+        let json: Value = json!({
+            "selectionResults": {
+                "columns": ["cnt", "extra"],
+                "results": [[97889, json!({"a": "b"})]]
+            },
+            "exceptions": [],
+            "numServersQueried": 1,
+            "numServersResponded": 1,
+            "numSegmentsQueried": 1,
+            "numSegmentsProcessed": 1,
+            "numSegmentsMatched": 1,
+            "numConsumingSegmentsQueried": 0,
+            "numDocsScanned": 97889,
+            "numEntriesScannedInFilter": 0,
+            "numEntriesScannedPostFilter": 0,
+            "numGroupsLimitReached": false,
+            "totalDocs": 97889,
+            "timeUsedMs": 5,
+            "segmentStatistics": [],
+            "traceInfo": {},
+            "minConsumingFreshnessTimeMs": 0
+        });
+        let broker_response: RawBrokerResponseWithoutStats = serde_json::from_value(json).unwrap();
+
+        assert_eq!(broker_response, RawBrokerResponseWithoutStats {
+            aggregation_results: vec![],
+            selection_results: Some(SelectionResults::new(
+                to_string_vec(vec!["cnt", "extra"]),
+                vec![vec![json!(97889), json!({"a": "b"})]],
+            )),
+            result_table: None,
+            exceptions: vec![],
+        });
+    }
+
+    #[test]
     fn pql_broker_response_deserializes_exception_correctly() {
         let error_message = test_broker_response_error_msg();
         let json = test_error_containing_broker_response(&error_message);
@@ -337,6 +389,49 @@ pub(crate) mod tests {
             total_docs: 97889,
             time_used_ms: 5,
             min_consuming_freshness_time_ms: 0,
+        });
+    }
+
+    #[test]
+    fn sql_broker_response_deserializes_sql_aggregation_query_without_stats_correctly() {
+        let json: Value = json!({
+            "resultTable": {
+                "dataSchema": {
+                    "columnDataTypes": ["LONG"],
+                    "columnNames": ["cnt"]
+                },
+                "rows": [[97889]]
+            },
+            "exceptions": [],
+            "numServersQueried": 1,
+            "numServersResponded": 1,
+            "numSegmentsQueried": 1,
+            "numSegmentsProcessed": 1,
+            "numSegmentsMatched": 1,
+            "numConsumingSegmentsQueried": 0,
+            "numDocsScanned": 97889,
+            "numEntriesScannedInFilter": 0,
+            "numEntriesScannedPostFilter": 0,
+            "numGroupsLimitReached": false,
+            "totalDocs": 97889,
+            "timeUsedMs": 5,
+            "segmentStatistics": [],
+            "traceInfo": {},
+            "minConsumingFreshnessTimeMs": 0
+        });
+        let broker_response: RawBrokerResponseWithoutStats = serde_json::from_value(json).unwrap();
+
+        assert_eq!(broker_response, RawBrokerResponseWithoutStats {
+            aggregation_results: vec![],
+            selection_results: None,
+            result_table: Some(RawResultTable {
+                data_schema: RawRespSchema {
+                    column_data_types: vec![LngT],
+                    column_names: to_string_vec(vec!["cnt"]),
+                },
+                rows: vec![vec![json!(97889)]],
+            }),
+            exceptions: vec![],
         });
     }
 

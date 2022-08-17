@@ -4,28 +4,28 @@ use serde_json::Value;
 
 use crate::errors::{Error, Result};
 use crate::response::{DataType, ResponseStats};
-use crate::response::raw::{RawBrokerResponse, RawRespSchema, RawResultTable};
-
-use super::Exception;
+use crate::response::raw::{RawBrokerResponse, RawBrokerResponseWithoutStats, RawRespSchema, RawResultTable};
 
 /// SqlBrokerResponse is the data structure for a broker response to an SQL query.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct SqlBrokerResponse<T: FromRow> {
     pub result_table: Option<ResultTable<T>>,
-    pub exceptions: Vec<Exception>,
-    pub stats: ResponseStats,
+    pub stats: Option<ResponseStats>,
 }
 
 impl<T: FromRow> From<RawBrokerResponse> for Result<SqlBrokerResponse<T>> {
     fn from(raw: RawBrokerResponse) -> Self {
+        if !raw.exceptions.is_empty() {
+            return Err(Error::PinotExceptions(raw.exceptions));
+        };
+
         let result_table: Option<ResultTable<T>> = match raw.result_table {
             None => None,
             Some(raw) => Some(Result::from(raw)?),
         };
         Ok(SqlBrokerResponse {
             result_table,
-            exceptions: raw.exceptions,
-            stats: ResponseStats {
+            stats: Some(ResponseStats {
                 trace_info: raw.trace_info,
                 num_servers_queried: raw.num_servers_queried,
                 num_servers_responded: raw.num_servers_responded,
@@ -40,7 +40,24 @@ impl<T: FromRow> From<RawBrokerResponse> for Result<SqlBrokerResponse<T>> {
                 total_docs: raw.total_docs,
                 time_used_ms: raw.time_used_ms,
                 min_consuming_freshness_time_ms: raw.min_consuming_freshness_time_ms,
-            },
+            }),
+        })
+    }
+}
+
+impl<T: FromRow> From<RawBrokerResponseWithoutStats> for Result<SqlBrokerResponse<T>> {
+    fn from(raw: RawBrokerResponseWithoutStats) -> Self {
+        if !raw.exceptions.is_empty() {
+            return Err(Error::PinotExceptions(raw.exceptions));
+        };
+
+        let result_table: Option<ResultTable<T>> = match raw.result_table {
+            None => None,
+            Some(raw) => Some(Result::from(raw)?),
+        };
+        Ok(SqlBrokerResponse {
+            result_table,
+            stats: None,
         })
     }
 }
@@ -187,11 +204,7 @@ pub(crate) mod tests {
     use serde::Deserialize;
     use serde_json::json;
 
-    use crate::response::{
-        DataType::Double as DubT,
-        DataType::Int as IntT,
-        DataType::Long as LngT,
-    };
+    use crate::response::{DataType::Double as DubT, DataType::Int as IntT, DataType::Long as LngT, Exception};
     use crate::response::data::{
         Data::Double as DubD,
         Data::Long as LngD,
@@ -214,7 +227,7 @@ pub(crate) mod tests {
                 },
                 rows: vec![vec![json!(97889), json!(232.1)]],
             }),
-            exceptions: vec![Exception { error_code: 0, message: "msg".to_string() }],
+            exceptions: vec![],
             trace_info: Default::default(),
             num_servers_queried: 1,
             num_servers_responded: 2,
@@ -231,7 +244,6 @@ pub(crate) mod tests {
             min_consuming_freshness_time_ms: 12,
         };
         let broker_response: SqlBrokerResponse<DataRow> = Result::from(raw_broker_response).unwrap();
-
         assert_eq!(broker_response, SqlBrokerResponse {
             result_table: Some(ResultTable {
                 data_schema: RespSchema {
@@ -242,8 +254,7 @@ pub(crate) mod tests {
                 },
                 rows: vec![DataRow::new(vec![LngD(97889), DubD(232.1)])],
             }),
-            exceptions: vec![Exception { error_code: 0, message: "msg".to_string() }],
-            stats: ResponseStats {
+            stats: Some(ResponseStats {
                 trace_info: Default::default(),
                 num_servers_queried: 1,
                 num_servers_responded: 2,
@@ -258,8 +269,84 @@ pub(crate) mod tests {
                 total_docs: 10,
                 time_used_ms: 11,
                 min_consuming_freshness_time_ms: 12,
-            },
+            }),
         });
+    }
+
+    #[test]
+    fn sql_broker_response_with_pinot_data_types_converts_from_raw_broker_response_without_stats() {
+        let raw_broker_response = RawBrokerResponseWithoutStats {
+            aggregation_results: vec![],
+            selection_results: None,
+            result_table: Some(RawResultTable {
+                data_schema: RawRespSchema {
+                    column_data_types: vec![LngT, DubT],
+                    column_names: to_string_vec(vec!["cnt", "score"]),
+                },
+                rows: vec![vec![json!(97889), json!(232.1)]],
+            }),
+            exceptions: vec![],
+        };
+        let broker_response: SqlBrokerResponse<DataRow> = Result::from(raw_broker_response).unwrap();
+
+        assert_eq!(broker_response, SqlBrokerResponse {
+            result_table: Some(ResultTable {
+                data_schema: RespSchema {
+                    column_data_types: vec![LngT, DubT],
+                    column_name_to_index: BiMap::from_iter(vec![
+                        ("cnt".to_string(), 0), ("score".to_string(), 1),
+                    ]),
+                },
+                rows: vec![DataRow::new(vec![LngD(97889), DubD(232.1)])],
+            }),
+            stats: None,
+        });
+    }
+
+    #[test]
+    fn pql_broker_response_deserializes_exceptions_correctly() {
+        let raw_broker_response = RawBrokerResponse {
+            aggregation_results: vec![],
+            selection_results: None,
+            result_table: None,
+            exceptions: vec![Exception { error_code: 0, message: "msg".to_string() }],
+            trace_info: Default::default(),
+            num_servers_queried: 1,
+            num_servers_responded: 2,
+            num_segments_queried: 3,
+            num_segments_processed: 4,
+            num_segments_matched: 5,
+            num_consuming_segments_queried: 6,
+            num_docs_scanned: 7,
+            num_entries_scanned_in_filter: 8,
+            num_entries_scanned_post_filter: 9,
+            num_groups_limit_reached: false,
+            total_docs: 10,
+            time_used_ms: 11,
+            min_consuming_freshness_time_ms: 12,
+        };
+        let broker_response: Result<SqlBrokerResponse<DataRow>> = Result::from(raw_broker_response);
+        match broker_response.unwrap_err() {
+            Error::PinotExceptions(exceptions) => assert_eq!(
+                exceptions, vec![Exception { error_code: 0, message: "msg".to_string() }]),
+            _ => panic!("Wrong variant")
+        };
+    }
+
+    #[test]
+    fn pql_broker_response_deserializes_exceptions_without_stats_correctly() {
+        let raw_broker_response = RawBrokerResponseWithoutStats {
+            aggregation_results: vec![],
+            selection_results: None,
+            result_table: None,
+            exceptions: vec![Exception { error_code: 0, message: "msg".to_string() }],
+        };
+        let broker_response: Result<SqlBrokerResponse<DataRow>> = Result::from(raw_broker_response);
+        match broker_response.unwrap_err() {
+            Error::PinotExceptions(exceptions) => assert_eq!(
+                exceptions, vec![Exception { error_code: 0, message: "msg".to_string() }]),
+            _ => panic!("Wrong variant")
+        };
     }
 
     #[test]
@@ -280,7 +367,7 @@ pub(crate) mod tests {
                 },
                 rows: vec![vec![json!(97889), json!(232.1)]],
             }),
-            exceptions: vec![Exception { error_code: 0, message: "msg".to_string() }],
+            exceptions: vec![],
             trace_info: Default::default(),
             num_servers_queried: 1,
             num_servers_responded: 2,
@@ -308,8 +395,7 @@ pub(crate) mod tests {
                 },
                 rows: vec![TestRow { cnt: 97889, score: 232.1 }],
             }),
-            exceptions: vec![Exception { error_code: 0, message: "msg".to_string() }],
-            stats: ResponseStats {
+            stats: Some(ResponseStats {
                 trace_info: Default::default(),
                 num_servers_queried: 1,
                 num_servers_responded: 2,
@@ -324,7 +410,43 @@ pub(crate) mod tests {
                 total_docs: 10,
                 time_used_ms: 11,
                 min_consuming_freshness_time_ms: 12,
-            },
+            }),
+        });
+    }
+
+    #[test]
+    fn sql_broker_response_with_deserializable_struct_converts_from_raw_broker_response_without_stats() {
+        #[derive(Deserialize, PartialEq, Debug)]
+        struct TestRow {
+            cnt: i64,
+            score: f64,
+        }
+
+        let raw_broker_response = RawBrokerResponseWithoutStats {
+            aggregation_results: vec![],
+            selection_results: None,
+            result_table: Some(RawResultTable {
+                data_schema: RawRespSchema {
+                    column_data_types: vec![LngT, DubT],
+                    column_names: to_string_vec(vec!["cnt", "score"]),
+                },
+                rows: vec![vec![json!(97889), json!(232.1)]],
+            }),
+            exceptions: vec![],
+        };
+        let broker_response: SqlBrokerResponse<TestRow> = Result::from(raw_broker_response).unwrap();
+
+        assert_eq!(broker_response, SqlBrokerResponse {
+            result_table: Some(ResultTable {
+                data_schema: RespSchema {
+                    column_data_types: vec![LngT, DubT],
+                    column_name_to_index: BiMap::from_iter(vec![
+                        ("cnt".to_string(), 0), ("score".to_string(), 1),
+                    ]),
+                },
+                rows: vec![TestRow { cnt: 97889, score: 232.1 }],
+            }),
+            stats: None,
         });
     }
 

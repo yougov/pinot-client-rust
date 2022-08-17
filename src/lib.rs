@@ -67,15 +67,18 @@ described synchronous instantiation methods.
 let client = pinot_client_rust::connection::client_from_broker_list(
     vec!["localhost:8099".to_string()], None).unwrap();
 let broker_response = client.execute_sql::<pinot_client_rust::response::data::DataRow>(
-    "baseballStats",
-    "select count(*) as cnt, sum(homeRuns) as sum_homeRuns from baseballStats group by teamID limit 10"
+    "scoreSheet",
+    "SELECT * FROM scoreSheet",
+    true,
 ).unwrap();
-log::info!(
-    "Query Stats: response time - {} ms, scanned docs - {}, total docs - {}",
-    broker_response.stats.time_used_ms,
-    broker_response.stats.num_docs_scanned,
-    broker_response.stats.total_docs,
-);
+if let Some(stats) = broker_response.stats {
+    log::info!(
+        "Query Stats: response time - {} ms, scanned docs - {}, total docs - {}",
+        stats.time_used_ms,
+        stats.num_docs_scanned,
+        stats.total_docs,
+    );
+}
 ```
 
 ## Response Format

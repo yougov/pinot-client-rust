@@ -191,8 +191,7 @@ pub(crate) mod tests {
     pub fn test_sql_broker_response() -> SqlBrokerResponse<DataRow> {
         SqlBrokerResponse {
             result_table: Some(test_result_table()),
-            exceptions: vec![],
-            stats: ResponseStats {
+            stats: Some(ResponseStats {
                 trace_info: Default::default(),
                 num_servers_queried: 1,
                 num_servers_responded: 1,
@@ -207,7 +206,7 @@ pub(crate) mod tests {
                 total_docs: 97889,
                 time_used_ms: 5,
                 min_consuming_freshness_time_ms: 0,
-            },
+            }),
         }
     }
 
@@ -221,8 +220,7 @@ pub(crate) mod tests {
                     Value::String("{\"a\": \"b\"}".to_string()),
                 ]],
             )),
-            exceptions: vec![],
-            stats: ResponseStats {
+            stats: Some(ResponseStats {
                 trace_info: Default::default(),
                 num_servers_queried: 1,
                 num_servers_responded: 1,
@@ -237,7 +235,7 @@ pub(crate) mod tests {
                 total_docs: 97889,
                 time_used_ms: 5,
                 min_consuming_freshness_time_ms: 0,
-            },
+            }),
         }
     }
 }

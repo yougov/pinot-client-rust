@@ -14,12 +14,12 @@ use crate::response::sql::{FromRow, SqlBrokerResponse};
 pub trait AsyncClientTransport: Clone + Debug {
     /// Execute SQL asynchronously
     async fn execute_sql<T: FromRow>(
-        &self, broker_address: &str, query: &str,
+        &self, broker_address: &str, query: &str, include_stats: bool,
     ) -> Result<SqlBrokerResponse<T>>;
 
     /// Execute PQL asynchronously
     async fn execute_pql(
-        &self, broker_address: &str, query: &str,
+        &self, broker_address: &str, query: &str, include_stats: bool,
     ) -> Result<PqlBrokerResponse>;
 }
 
@@ -62,14 +62,16 @@ pub(crate) mod tests {
     #[async_trait]
     impl AsyncClientTransport for TestAsyncClientTransport {
         async fn execute_sql<T: FromRow>(
-            &self, broker_address: &str, query: &str,
+            &self, broker_address: &str, query: &str, _include_stats: bool,
         ) -> Result<SqlBrokerResponse<T>> {
             let json: Value = (self.sql_return_function.lock().unwrap())(broker_address, query)?;
             let raw_broker_response: RawBrokerResponse = serde_json::from_value(json)?;
             Result::from(raw_broker_response)
         }
 
-        async fn execute_pql(&self, broker_address: &str, query: &str) -> Result<PqlBrokerResponse> {
+        async fn execute_pql(
+            &self, broker_address: &str, query: &str, _include_stats: bool,
+        ) -> Result<PqlBrokerResponse> {
             (self.pql_return_function.lock().unwrap())(broker_address, query)
         }
     }

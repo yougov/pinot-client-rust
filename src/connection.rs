@@ -29,15 +29,19 @@ impl<CT: ClientTransport, BS: BrokerSelector> Connection<CT, BS> {
 
 impl<CT: ClientTransport, BS: BrokerSelector> Connection<CT, BS> {
     /// Execute SQL for a given table
-    pub fn execute_sql<T: FromRow>(&self, table: &str, query: &str) -> Result<SqlBrokerResponse<T>> {
+    pub fn execute_sql<T: FromRow>(
+        &self, table: &str, query: &str, include_stats: bool,
+    ) -> Result<SqlBrokerResponse<T>> {
         let broker_address = self.broker_selector.select_broker(table)?;
-        self.transport.execute_sql(&broker_address, query)
+        self.transport.execute_sql(&broker_address, query, include_stats)
     }
 
     /// Execute PQL for a given table
-    pub fn execute_pql(&self, table: &str, query: &str) -> Result<PqlBrokerResponse> {
+    pub fn execute_pql(
+        &self, table: &str, query: &str, include_stats: bool,
+    ) -> Result<PqlBrokerResponse> {
         let broker_address = self.broker_selector.select_broker(table)?;
-        self.transport.execute_pql(&broker_address, query)
+        self.transport.execute_pql(&broker_address, query, include_stats)
     }
 }
 
@@ -101,7 +105,7 @@ pub(crate) mod tests {
             }),
         );
 
-        let broker_response = conn.execute_sql("table", "SELECT * FROM table").unwrap();
+        let broker_response = conn.execute_sql("table", "SELECT * FROM table", true).unwrap();
         assert_eq!(broker_response, test_sql_broker_response());
     }
 
@@ -124,7 +128,7 @@ pub(crate) mod tests {
             }),
         );
 
-        let broker_response = conn.execute_pql("table", "SELECT * FROM table").unwrap();
+        let broker_response = conn.execute_pql("table", "SELECT * FROM table", true).unwrap();
         assert_eq!(broker_response, test_pql_broker_response());
     }
 

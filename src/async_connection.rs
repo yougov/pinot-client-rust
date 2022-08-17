@@ -31,15 +31,19 @@ impl<CT: AsyncClientTransport, BS: BrokerSelector> AsyncConnection<CT, BS> {
 
 impl<CT: AsyncClientTransport, BS: BrokerSelector> AsyncConnection<CT, BS> {
     /// Execute SQL for a given table
-    pub async fn execute_sql<T: FromRow>(&self, table: &str, query: &str) -> Result<SqlBrokerResponse<T>> {
+    pub async fn execute_sql<T: FromRow>(
+        &self, table: &str, query: &str, include_stats: bool,
+    ) -> Result<SqlBrokerResponse<T>> {
         let broker_address = self.broker_selector.select_broker(table)?;
-        self.transport.execute_sql(&broker_address, query).await
+        self.transport.execute_sql(&broker_address, query, include_stats).await
     }
 
     /// Execute PQL for a given table
-    pub async fn execute_pql(&self, table: &str, query: &str) -> Result<PqlBrokerResponse> {
+    pub async fn execute_pql(
+        &self, table: &str, query: &str, include_stats: bool,
+    ) -> Result<PqlBrokerResponse> {
         let broker_address = self.broker_selector.select_broker(table)?;
-        self.transport.execute_pql(&broker_address, query).await
+        self.transport.execute_pql(&broker_address, query, include_stats).await
     }
 }
 
@@ -103,7 +107,7 @@ pub(crate) mod tests {
             }),
         );
 
-        let broker_response = conn.execute_sql("table", "SELECT * FROM table").await.unwrap();
+        let broker_response = conn.execute_sql("table", "SELECT * FROM table", true).await.unwrap();
         assert_eq!(broker_response, test_sql_broker_response());
     }
 
@@ -126,7 +130,7 @@ pub(crate) mod tests {
             }),
         );
 
-        let broker_response = conn.execute_pql("table", "SELECT * FROM table").await.unwrap();
+        let broker_response = conn.execute_pql("table", "SELECT * FROM table", true).await.unwrap();
         assert_eq!(broker_response, test_pql_broker_response());
     }
 

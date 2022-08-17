@@ -9,12 +9,12 @@ use crate::response::sql::{FromRow, SqlBrokerResponse};
 pub trait ClientTransport: Clone + Debug {
     /// Execute SQL
     fn execute_sql<T: FromRow>(
-        &self, broker_address: &str, query: &str,
+        &self, broker_address: &str, query: &str, include_stats: bool,
     ) -> Result<SqlBrokerResponse<T>>;
 
     /// Execute PQL
     fn execute_pql(
-        &self, broker_address: &str, query: &str,
+        &self, broker_address: &str, query: &str, include_stats: bool,
     ) -> Result<PqlBrokerResponse>;
 }
 
@@ -56,14 +56,16 @@ pub(crate) mod tests {
 
     impl ClientTransport for TestClientTransport {
         fn execute_sql<T: FromRow>(
-            &self, broker_address: &str, query: &str,
+            &self, broker_address: &str, query: &str, _include_stats: bool,
         ) -> Result<SqlBrokerResponse<T>> {
             let json: Value = (self.sql_return_function)(broker_address, query)?;
             let raw_broker_response: RawBrokerResponse = serde_json::from_value(json)?;
             Result::from(raw_broker_response)
         }
 
-        fn execute_pql(&self, broker_address: &str, query: &str) -> Result<PqlBrokerResponse> {
+        fn execute_pql(
+            &self, broker_address: &str, query: &str, _include_stats: bool,
+        ) -> Result<PqlBrokerResponse> {
             (self.pql_return_function)(broker_address, query)
         }
     }

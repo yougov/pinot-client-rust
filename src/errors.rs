@@ -79,6 +79,9 @@ pub enum Error {
     #[error("No available broker found for table: {0}")]
     NoAvailableBrokerForTable(String),
 
+    #[error("Pinot query returned exceptions: {0:?}")]
+    PinotExceptions(Vec<crate::response::Exception>),
+
     /// Dynamic broker selector could not be accessed.
     #[error("Dynamic broker selector unavailable: {0}")]
     UnavailableDynamicBrokerSelector(#[from] DynamicBrokerSelectorError),

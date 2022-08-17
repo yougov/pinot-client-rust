@@ -1,4 +1,4 @@
-use pinot_client_rust::response::{Exception, ResponseStats, SqlBrokerResponse};
+use pinot_client_rust::response::{ResponseStats, SqlBrokerResponse};
 use pinot_client_rust::response::data::DataRow;
 
 fn main() {
@@ -16,14 +16,15 @@ fn main() {
     println!("===Querying SQL===");
     for query in &pinot_queries {
         println!("\n---Trying to query Pinot: {}---", query);
-        let broker_response = client.execute_sql(table, query).unwrap();
+        let broker_response = client.execute_sql(table, query, true).unwrap();
         print_sql_broker_resp(&broker_response);
     }
 }
 
 fn print_sql_broker_resp(broker_resp: &SqlBrokerResponse<DataRow>) {
-    print_resp_stats(&broker_resp.stats);
-    print_exceptions(&broker_resp.exceptions);
+    if let Some(stats) = &broker_resp.stats {
+        print_resp_stats(stats);
+    }
     if let Some(result_table) = &broker_resp.result_table {
         println!("Broker response table results: {:?}", result_table);
         return;
@@ -37,11 +38,4 @@ fn print_resp_stats(stats: &ResponseStats) {
         stats.num_docs_scanned,
         stats.total_docs,
     );
-}
-
-fn print_exceptions(exceptions: &Vec<Exception>) {
-    if !exceptions.is_empty() {
-        println!("Broker response exceptions: {:?}", exceptions);
-        return;
-    }
 }
