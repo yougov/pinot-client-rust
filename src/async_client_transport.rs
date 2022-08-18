@@ -5,8 +5,8 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 
 use crate::errors::Result;
-use crate::response::PqlBrokerResponse;
-use crate::response::sql::{FromRow, SqlBrokerResponse};
+use crate::response::PqlResponse;
+use crate::response::sql::{FromRow, SqlResponse};
 
 /// An asynchronous client transport that communicates
 /// with a Pinot cluster given a broker address
@@ -15,12 +15,12 @@ pub trait AsyncClientTransport: Clone + Debug {
     /// Execute SQL asynchronously
     async fn execute_sql<T: FromRow>(
         &self, broker_address: &str, query: &str, include_stats: bool,
-    ) -> Result<SqlBrokerResponse<T>>;
+    ) -> Result<SqlResponse<T>>;
 
     /// Execute PQL asynchronously
     async fn execute_pql(
         &self, broker_address: &str, query: &str, include_stats: bool,
-    ) -> Result<PqlBrokerResponse>;
+    ) -> Result<PqlResponse>;
 }
 
 #[cfg(test)]
@@ -37,7 +37,7 @@ pub(crate) mod tests {
     #[derive(Clone)]
     pub struct TestAsyncClientTransport {
         sql_return_function: Arc<Mutex<Box<dyn Fn(&str, &str) -> Result<Value> + Send>>>,
-        pql_return_function: Arc<Mutex<Box<dyn Fn(&str, &str) -> Result<PqlBrokerResponse> + Send>>>,
+        pql_return_function: Arc<Mutex<Box<dyn Fn(&str, &str) -> Result<PqlResponse> + Send>>>,
     }
 
     impl Debug for TestAsyncClientTransport {
@@ -50,7 +50,7 @@ pub(crate) mod tests {
         pub fn new<SqlFn, PqlFn>(sql_return_function: SqlFn, pql_return_function: PqlFn) -> Self
             where
                 SqlFn: 'static + Fn(&str, &str) -> Result<Value> + Send,
-                PqlFn: 'static + Fn(&str, &str) -> Result<PqlBrokerResponse> + Send,
+                PqlFn: 'static + Fn(&str, &str) -> Result<PqlResponse> + Send,
         {
             Self {
                 sql_return_function: Arc::new(Mutex::new(Box::new(sql_return_function))),
@@ -63,7 +63,7 @@ pub(crate) mod tests {
     impl AsyncClientTransport for TestAsyncClientTransport {
         async fn execute_sql<T: FromRow>(
             &self, broker_address: &str, query: &str, _include_stats: bool,
-        ) -> Result<SqlBrokerResponse<T>> {
+        ) -> Result<SqlResponse<T>> {
             let json: Value = (self.sql_return_function.lock().unwrap())(broker_address, query)?;
             let raw_broker_response: RawBrokerResponse = serde_json::from_value(json)?;
             Result::from(raw_broker_response)
@@ -71,7 +71,7 @@ pub(crate) mod tests {
 
         async fn execute_pql(
             &self, broker_address: &str, query: &str, _include_stats: bool,
-        ) -> Result<PqlBrokerResponse> {
+        ) -> Result<PqlResponse> {
             (self.pql_return_function.lock().unwrap())(broker_address, query)
         }
     }

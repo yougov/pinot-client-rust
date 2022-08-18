@@ -4,20 +4,20 @@ use crate::{Error, Result};
 use crate::response::raw::{AggregationResult, RawBrokerResponse, RawBrokerResponseWithoutStats, SelectionResults};
 use crate::response::ResponseStats;
 
-/// PqlBrokerResponse is the data structure for broker response to a PQL query.
+/// Data structure for broker response to a PQL query.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-pub struct PqlBrokerResponse {
+pub struct PqlResponse {
     pub aggregation_results: Vec<AggregationResult>,
     pub selection_results: Option<SelectionResults>,
     pub stats: Option<ResponseStats>,
 }
 
-impl From<RawBrokerResponse> for Result<PqlBrokerResponse> {
+impl From<RawBrokerResponse> for Result<PqlResponse> {
     fn from(raw: RawBrokerResponse) -> Self {
         if !raw.exceptions.is_empty() {
             return Err(Error::PinotExceptions(raw.exceptions));
         };
-        Ok(PqlBrokerResponse {
+        Ok(PqlResponse {
             aggregation_results: raw.aggregation_results,
             selection_results: raw.selection_results,
             stats: Some(ResponseStats {
@@ -40,12 +40,12 @@ impl From<RawBrokerResponse> for Result<PqlBrokerResponse> {
     }
 }
 
-impl From<RawBrokerResponseWithoutStats> for Result<PqlBrokerResponse> {
+impl From<RawBrokerResponseWithoutStats> for Result<PqlResponse> {
     fn from(raw: RawBrokerResponseWithoutStats) -> Self {
         if !raw.exceptions.is_empty() {
             return Err(Error::PinotExceptions(raw.exceptions));
         };
-        Ok(PqlBrokerResponse {
+        Ok(PqlResponse {
             aggregation_results: raw.aggregation_results,
             selection_results: raw.selection_results,
             stats: None,
@@ -56,7 +56,7 @@ impl From<RawBrokerResponseWithoutStats> for Result<PqlBrokerResponse> {
 #[cfg(test)]
 pub(crate) mod tests {
     use serde_json::json;
-    use crate::response::Exception;
+    use crate::response::PinotException;
 
     use crate::response::pql::SelectionResults;
     use crate::tests::to_string_vec;
@@ -64,7 +64,7 @@ pub(crate) mod tests {
     use super::*;
 
     #[test]
-    fn pql_broker_response_deserializes_pql_aggregation_query_correctly() {
+    fn pql_response_deserializes_pql_aggregation_query_correctly() {
         let raw_broker_response = RawBrokerResponse {
             aggregation_results: vec![AggregationResult {
                 function: "sort".to_string(),
@@ -93,8 +93,8 @@ pub(crate) mod tests {
             time_used_ms: 11,
             min_consuming_freshness_time_ms: 12,
         };
-        let broker_response: Result<PqlBrokerResponse> = Result::from(raw_broker_response);
-        assert_eq!(broker_response.unwrap(), PqlBrokerResponse {
+        let broker_response: Result<PqlResponse> = Result::from(raw_broker_response);
+        assert_eq!(broker_response.unwrap(), PqlResponse {
             aggregation_results: vec![AggregationResult {
                 function: "sort".to_string(),
                 value: "1".to_string(),
@@ -125,12 +125,12 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn pql_broker_response_deserializes_exceptions_correctly() {
+    fn pql_response_deserializes_exceptions_correctly() {
         let raw_broker_response = RawBrokerResponse {
             aggregation_results: vec![],
             selection_results: None,
             result_table: None,
-            exceptions: vec![Exception { error_code: 0, message: "msg".to_string() }],
+            exceptions: vec![PinotException { error_code: 0, message: "msg".to_string() }],
             trace_info: Default::default(),
             num_servers_queried: 1,
             num_servers_responded: 2,
@@ -146,16 +146,16 @@ pub(crate) mod tests {
             time_used_ms: 11,
             min_consuming_freshness_time_ms: 12,
         };
-        let broker_response: Result<PqlBrokerResponse> = Result::from(raw_broker_response);
+        let broker_response: Result<PqlResponse> = Result::from(raw_broker_response);
         match broker_response.unwrap_err() {
             Error::PinotExceptions(exceptions) => assert_eq!(
-                exceptions, vec![Exception { error_code: 0, message: "msg".to_string() }]),
+                exceptions, vec![PinotException { error_code: 0, message: "msg".to_string() }]),
             _ => panic!("Wrong variant")
         };
     }
 
     #[test]
-    fn pql_broker_response_deserializes_pql_aggregation_query_without_stats_correctly() {
+    fn pql_response_deserializes_pql_aggregation_query_without_stats_correctly() {
         let raw_broker_response = RawBrokerResponseWithoutStats {
             aggregation_results: vec![AggregationResult {
                 function: "sort".to_string(),
@@ -170,8 +170,8 @@ pub(crate) mod tests {
             result_table: None,
             exceptions: vec![],
         };
-        let broker_response: Result<PqlBrokerResponse> = Result::from(raw_broker_response);
-        assert_eq!(broker_response.unwrap(), PqlBrokerResponse {
+        let broker_response: Result<PqlResponse> = Result::from(raw_broker_response);
+        assert_eq!(broker_response.unwrap(), PqlResponse {
             aggregation_results: vec![AggregationResult {
                 function: "sort".to_string(),
                 value: "1".to_string(),
@@ -187,17 +187,17 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn pql_broker_response_deserializes_exceptions_without_stats_correctly() {
+    fn pql_response_deserializes_exceptions_without_stats_correctly() {
         let raw_broker_response = RawBrokerResponseWithoutStats {
             aggregation_results: vec![],
             selection_results: None,
             result_table: None,
-            exceptions: vec![Exception { error_code: 0, message: "msg".to_string() }],
+            exceptions: vec![PinotException { error_code: 0, message: "msg".to_string() }],
         };
-        let broker_response: Result<PqlBrokerResponse> = Result::from(raw_broker_response);
+        let broker_response: Result<PqlResponse> = Result::from(raw_broker_response);
         match broker_response.unwrap_err() {
             Error::PinotExceptions(exceptions) => assert_eq!(
-                exceptions, vec![Exception { error_code: 0, message: "msg".to_string() }]),
+                exceptions, vec![PinotException { error_code: 0, message: "msg".to_string() }]),
             _ => panic!("Wrong variant")
         };
     }

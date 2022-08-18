@@ -7,9 +7,9 @@ use crate::async_client_transport::AsyncClientTransport;
 use crate::errors::{Error, Result};
 use crate::request::{QueryFormat, Request};
 use crate::request::encode_query_address;
-use crate::response::pql::PqlBrokerResponse;
+use crate::response::pql::PqlResponse;
 use crate::response::raw::{RawBrokerResponse, RawBrokerResponseWithoutStats};
-use crate::response::sql::{FromRow, SqlBrokerResponse};
+use crate::response::sql::{FromRow, SqlResponse};
 
 /// An asynchronous json implementation of clientTransport
 #[derive(Clone, Debug)]
@@ -31,7 +31,7 @@ impl JsonAsyncHttpClientTransport {
 impl AsyncClientTransport for JsonAsyncHttpClientTransport {
     async fn execute_sql<T: FromRow>(
         &self, broker_address: &str, query: &str, include_stats: bool,
-    ) -> Result<SqlBrokerResponse<T>> {
+    ) -> Result<SqlResponse<T>> {
         let query = Request::new(QueryFormat::SQL, query);
         let response = execute_http_request(
             broker_address, &query, &self.header, &self.client,
@@ -51,7 +51,7 @@ impl AsyncClientTransport for JsonAsyncHttpClientTransport {
 
     async fn execute_pql(
         &self, broker_address: &str, query: &str, include_stats: bool,
-    ) -> Result<PqlBrokerResponse> {
+    ) -> Result<PqlResponse> {
         let query = Request::new(QueryFormat::PQL, query);
         let response = execute_http_request(
             broker_address, &query, &self.header, &self.client,
@@ -115,8 +115,8 @@ mod test {
     use crate::connection::tests::test_broker_localhost_8099;
     use crate::response::data::{Data, DataRow};
     use crate::response::DataType;
-    use crate::response::raw::{RawRespSchema, SelectionResults};
-    use crate::response::sql::{RespSchema, ResultTable};
+    use crate::response::raw::{RawSchema, SelectionResults};
+    use crate::response::sql::{Schema, Table};
     use crate::tests::{date_time_utc, to_string_vec};
 
     use super::*;
@@ -153,13 +153,13 @@ mod test {
             reqwest::Client::new(),
             HeaderMap::new(),
         );
-        let response: SqlBrokerResponse<DataRow> = transport.execute_sql(
+        let response: SqlResponse<DataRow> = transport.execute_sql(
             &test_broker_localhost_8099(), "SELECT * FROM scoreSheet", true,
         ).await.unwrap();
-        let result_table = response.result_table.unwrap();
+        let table = response.table.unwrap();
 
-        assert_eq!(result_table, ResultTable::new(
-            RespSchema::from(RawRespSchema {
+        assert_eq!(table, Table::new(
+            Schema::from(RawSchema {
                 column_data_types: vec![
                     DataType::Int, DataType::Float, DataType::Double, DataType::Timestamp,
                     DataType::Long, DataType::Json, DataType::IntArray, DataType::FloatArray,

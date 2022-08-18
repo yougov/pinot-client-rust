@@ -80,7 +80,7 @@ pub enum Error {
     NoAvailableBrokerForTable(String),
 
     #[error("Pinot query returned exceptions: {0:?}")]
-    PinotExceptions(Vec<crate::response::Exception>),
+    PinotExceptions(Vec<crate::response::PinotException>),
 
     /// Dynamic broker selector could not be accessed.
     #[error("Dynamic broker selector unavailable: {0}")]

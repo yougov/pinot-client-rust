@@ -4,27 +4,27 @@ use serde_json::Value;
 
 use crate::errors::{Error, Result};
 use crate::response::{DataType, ResponseStats};
-use crate::response::raw::{RawBrokerResponse, RawBrokerResponseWithoutStats, RawRespSchema, RawResultTable};
+use crate::response::raw::{RawBrokerResponse, RawBrokerResponseWithoutStats, RawSchema, RawTable};
 
-/// SqlBrokerResponse is the data structure for a broker response to an SQL query.
+/// Data structure for a broker response to an SQL query.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
-pub struct SqlBrokerResponse<T: FromRow> {
-    pub result_table: Option<ResultTable<T>>,
+pub struct SqlResponse<T: FromRow> {
+    pub table: Option<Table<T>>,
     pub stats: Option<ResponseStats>,
 }
 
-impl<T: FromRow> From<RawBrokerResponse> for Result<SqlBrokerResponse<T>> {
+impl<T: FromRow> From<RawBrokerResponse> for Result<SqlResponse<T>> {
     fn from(raw: RawBrokerResponse) -> Self {
         if !raw.exceptions.is_empty() {
             return Err(Error::PinotExceptions(raw.exceptions));
         };
 
-        let result_table: Option<ResultTable<T>> = match raw.result_table {
+        let table: Option<Table<T>> = match raw.result_table {
             None => None,
             Some(raw) => Some(Result::from(raw)?),
         };
-        Ok(SqlBrokerResponse {
-            result_table,
+        Ok(SqlResponse {
+            table,
             stats: Some(ResponseStats {
                 trace_info: raw.trace_info,
                 num_servers_queried: raw.num_servers_queried,
@@ -45,53 +45,53 @@ impl<T: FromRow> From<RawBrokerResponse> for Result<SqlBrokerResponse<T>> {
     }
 }
 
-impl<T: FromRow> From<RawBrokerResponseWithoutStats> for Result<SqlBrokerResponse<T>> {
+impl<T: FromRow> From<RawBrokerResponseWithoutStats> for Result<SqlResponse<T>> {
     fn from(raw: RawBrokerResponseWithoutStats) -> Self {
         if !raw.exceptions.is_empty() {
             return Err(Error::PinotExceptions(raw.exceptions));
         };
 
-        let result_table: Option<ResultTable<T>> = match raw.result_table {
+        let table: Option<Table<T>> = match raw.result_table {
             None => None,
             Some(raw) => Some(Result::from(raw)?),
         };
-        Ok(SqlBrokerResponse {
-            result_table,
+        Ok(SqlResponse {
+            table,
             stats: None,
         })
     }
 }
 
-/// FromRow represents any structure which can deserialize
-/// the ResultTable.rows json field provided a `RespSchema`
+/// Represents any structure which can deserialize
+/// a table row of json fields provided a `Schema`
 pub trait FromRow: Sized {
     fn from_row(
-        data_schema: &RespSchema,
+        data_schema: &Schema,
         row: Vec<Value>,
     ) -> std::result::Result<Self, serde_json::Error>;
 }
 
-/// ResultTable is the holder for SQL queries.
+/// Holder for SQL queries.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
-pub struct ResultTable<T: FromRow> {
-    data_schema: RespSchema,
+pub struct Table<T: FromRow> {
+    schema: Schema,
     rows: Vec<T>,
 }
 
-impl<T: FromRow> ResultTable<T> {
+impl<T: FromRow> Table<T> {
     pub fn new(
-        data_schema: RespSchema,
+        schema: Schema,
         rows: Vec<T>,
     ) -> Self {
-        ResultTable { data_schema, rows }
+        Table { schema, rows }
     }
 
     /// Returns the schema
-    pub fn get_schema(&self) -> &RespSchema {
-        &self.data_schema
+    pub fn get_schema(&self) -> &Schema {
+        &self.schema
     }
 
-    /// Returns how many rows in the ResultTable
+    /// Returns how many rows in the Table
     pub fn get_row_count(&self) -> usize {
         self.rows.len()
     }
@@ -106,31 +106,31 @@ impl<T: FromRow> ResultTable<T> {
         self.rows
     }
 
-    /// Converts result table into a `RespSchema` and rows vector
-    pub fn into_schema_and_rows(self) -> (RespSchema, Vec<T>) {
-        (self.data_schema, self.rows)
+    /// Converts result table into a `Schema` and rows vector
+    pub fn into_schema_and_rows(self) -> (Schema, Vec<T>) {
+        (self.schema, self.rows)
     }
 }
 
-impl<T: FromRow> From<RawResultTable> for Result<ResultTable<T>> {
-    fn from(raw: RawResultTable) -> Self {
-        let data_schema: RespSchema = raw.data_schema.into();
+impl<T: FromRow> From<RawTable> for Result<Table<T>> {
+    fn from(raw: RawTable) -> Self {
+        let schema: Schema = raw.schema.into();
         let rows = raw.rows
             .into_iter()
-            .map(|row| T::from_row(&data_schema, row))
+            .map(|row| T::from_row(&schema, row))
             .collect::<std::result::Result<Vec<T>, serde_json::Error>>()?;
-        Ok(ResultTable::new(data_schema, rows))
+        Ok(Table::new(schema, rows))
     }
 }
 
-/// RespSchema is response schema with a bimap to allow easy name <-> index retrieval
+/// Schema with a bimap to allow easy name <-> index retrieval
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
-pub struct RespSchema {
+pub struct Schema {
     column_data_types: Vec<DataType>,
     column_name_to_index: bimap::BiMap::<String, usize>,
 }
 
-impl RespSchema {
+impl Schema {
     pub fn new(
         column_data_types: Vec<DataType>,
         column_name_to_index: bimap::BiMap::<String, usize>,
@@ -138,7 +138,7 @@ impl RespSchema {
         Self { column_data_types, column_name_to_index }
     }
 
-    /// Returns how many columns in the ResultTable
+    /// Returns how many columns in the Table
     pub fn get_column_count(&self) -> usize {
         self.column_data_types.len()
     }
@@ -185,15 +185,15 @@ impl RespSchema {
     }
 }
 
-impl From<RawRespSchema> for RespSchema {
-    fn from(raw_resp_schema: RawRespSchema) -> Self {
-        let column_data_types = raw_resp_schema.column_data_types;
+impl From<RawSchema> for Schema {
+    fn from(raw_schema: RawSchema) -> Self {
+        let column_data_types = raw_schema.column_data_types;
         let mut column_name_to_index: BiMap::<String, usize> = BiMap::with_capacity(
-            raw_resp_schema.column_names.len());
-        for (index, column_name) in raw_resp_schema.column_names.into_iter().enumerate() {
+            raw_schema.column_names.len());
+        for (index, column_name) in raw_schema.column_names.into_iter().enumerate() {
             column_name_to_index.insert(column_name, index);
         }
-        RespSchema { column_data_types, column_name_to_index }
+        Schema { column_data_types, column_name_to_index }
     }
 }
 
@@ -204,7 +204,7 @@ pub(crate) mod tests {
     use serde::Deserialize;
     use serde_json::json;
 
-    use crate::response::{DataType::Double as DubT, DataType::Int as IntT, DataType::Long as LngT, Exception};
+    use crate::response::{DataType::Double as DubT, DataType::Int as IntT, DataType::Long as LngT, PinotException};
     use crate::response::data::{
         Data::Double as DubD,
         Data::Long as LngD,
@@ -216,12 +216,12 @@ pub(crate) mod tests {
     use super::*;
 
     #[test]
-    fn sql_broker_response_with_pinot_data_types_converts_from_raw_broker_response() {
+    fn sql_response_with_pinot_data_types_converts_from_raw_broker_response() {
         let raw_broker_response = RawBrokerResponse {
             aggregation_results: vec![],
             selection_results: None,
-            result_table: Some(RawResultTable {
-                data_schema: RawRespSchema {
+            result_table: Some(RawTable {
+                schema: RawSchema {
                     column_data_types: vec![LngT, DubT],
                     column_names: to_string_vec(vec!["cnt", "score"]),
                 },
@@ -243,10 +243,10 @@ pub(crate) mod tests {
             time_used_ms: 11,
             min_consuming_freshness_time_ms: 12,
         };
-        let broker_response: SqlBrokerResponse<DataRow> = Result::from(raw_broker_response).unwrap();
-        assert_eq!(broker_response, SqlBrokerResponse {
-            result_table: Some(ResultTable {
-                data_schema: RespSchema {
+        let broker_response: SqlResponse<DataRow> = Result::from(raw_broker_response).unwrap();
+        assert_eq!(broker_response, SqlResponse {
+            table: Some(Table {
+                schema: Schema {
                     column_data_types: vec![LngT, DubT],
                     column_name_to_index: BiMap::from_iter(vec![
                         ("cnt".to_string(), 0), ("score".to_string(), 1),
@@ -274,12 +274,12 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn sql_broker_response_with_pinot_data_types_converts_from_raw_broker_response_without_stats() {
+    fn sql_response_with_pinot_data_types_converts_from_raw_broker_response_without_stats() {
         let raw_broker_response = RawBrokerResponseWithoutStats {
             aggregation_results: vec![],
             selection_results: None,
-            result_table: Some(RawResultTable {
-                data_schema: RawRespSchema {
+            result_table: Some(RawTable {
+                schema: RawSchema {
                     column_data_types: vec![LngT, DubT],
                     column_names: to_string_vec(vec!["cnt", "score"]),
                 },
@@ -287,11 +287,11 @@ pub(crate) mod tests {
             }),
             exceptions: vec![],
         };
-        let broker_response: SqlBrokerResponse<DataRow> = Result::from(raw_broker_response).unwrap();
+        let broker_response: SqlResponse<DataRow> = Result::from(raw_broker_response).unwrap();
 
-        assert_eq!(broker_response, SqlBrokerResponse {
-            result_table: Some(ResultTable {
-                data_schema: RespSchema {
+        assert_eq!(broker_response, SqlResponse {
+            table: Some(Table {
+                schema: Schema {
                     column_data_types: vec![LngT, DubT],
                     column_name_to_index: BiMap::from_iter(vec![
                         ("cnt".to_string(), 0), ("score".to_string(), 1),
@@ -304,12 +304,12 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn pql_broker_response_deserializes_exceptions_correctly() {
+    fn pql_response_deserializes_exceptions_correctly() {
         let raw_broker_response = RawBrokerResponse {
             aggregation_results: vec![],
             selection_results: None,
             result_table: None,
-            exceptions: vec![Exception { error_code: 0, message: "msg".to_string() }],
+            exceptions: vec![PinotException { error_code: 0, message: "msg".to_string() }],
             trace_info: Default::default(),
             num_servers_queried: 1,
             num_servers_responded: 2,
@@ -325,32 +325,32 @@ pub(crate) mod tests {
             time_used_ms: 11,
             min_consuming_freshness_time_ms: 12,
         };
-        let broker_response: Result<SqlBrokerResponse<DataRow>> = Result::from(raw_broker_response);
+        let broker_response: Result<SqlResponse<DataRow>> = Result::from(raw_broker_response);
         match broker_response.unwrap_err() {
             Error::PinotExceptions(exceptions) => assert_eq!(
-                exceptions, vec![Exception { error_code: 0, message: "msg".to_string() }]),
+                exceptions, vec![PinotException { error_code: 0, message: "msg".to_string() }]),
             _ => panic!("Wrong variant")
         };
     }
 
     #[test]
-    fn pql_broker_response_deserializes_exceptions_without_stats_correctly() {
+    fn pql_response_deserializes_exceptions_without_stats_correctly() {
         let raw_broker_response = RawBrokerResponseWithoutStats {
             aggregation_results: vec![],
             selection_results: None,
             result_table: None,
-            exceptions: vec![Exception { error_code: 0, message: "msg".to_string() }],
+            exceptions: vec![PinotException { error_code: 0, message: "msg".to_string() }],
         };
-        let broker_response: Result<SqlBrokerResponse<DataRow>> = Result::from(raw_broker_response);
+        let broker_response: Result<SqlResponse<DataRow>> = Result::from(raw_broker_response);
         match broker_response.unwrap_err() {
             Error::PinotExceptions(exceptions) => assert_eq!(
-                exceptions, vec![Exception { error_code: 0, message: "msg".to_string() }]),
+                exceptions, vec![PinotException { error_code: 0, message: "msg".to_string() }]),
             _ => panic!("Wrong variant")
         };
     }
 
     #[test]
-    fn sql_broker_response_with_deserializable_struct_converts_from_raw_broker_response() {
+    fn sql_response_with_deserializable_struct_converts_from_raw_broker_response() {
         #[derive(Deserialize, PartialEq, Debug)]
         struct TestRow {
             cnt: i64,
@@ -360,8 +360,8 @@ pub(crate) mod tests {
         let raw_broker_response = RawBrokerResponse {
             aggregation_results: vec![],
             selection_results: None,
-            result_table: Some(RawResultTable {
-                data_schema: RawRespSchema {
+            result_table: Some(RawTable {
+                schema: RawSchema {
                     column_data_types: vec![LngT, DubT],
                     column_names: to_string_vec(vec!["cnt", "score"]),
                 },
@@ -383,11 +383,11 @@ pub(crate) mod tests {
             time_used_ms: 11,
             min_consuming_freshness_time_ms: 12,
         };
-        let broker_response: SqlBrokerResponse<TestRow> = Result::from(raw_broker_response).unwrap();
+        let broker_response: SqlResponse<TestRow> = Result::from(raw_broker_response).unwrap();
 
-        assert_eq!(broker_response, SqlBrokerResponse {
-            result_table: Some(ResultTable {
-                data_schema: RespSchema {
+        assert_eq!(broker_response, SqlResponse {
+            table: Some(Table {
+                schema: Schema {
                     column_data_types: vec![LngT, DubT],
                     column_name_to_index: BiMap::from_iter(vec![
                         ("cnt".to_string(), 0), ("score".to_string(), 1),
@@ -415,7 +415,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn sql_broker_response_with_deserializable_struct_converts_from_raw_broker_response_without_stats() {
+    fn sql_response_with_deserializable_struct_converts_from_raw_broker_response_without_stats() {
         #[derive(Deserialize, PartialEq, Debug)]
         struct TestRow {
             cnt: i64,
@@ -425,8 +425,8 @@ pub(crate) mod tests {
         let raw_broker_response = RawBrokerResponseWithoutStats {
             aggregation_results: vec![],
             selection_results: None,
-            result_table: Some(RawResultTable {
-                data_schema: RawRespSchema {
+            result_table: Some(RawTable {
+                schema: RawSchema {
                     column_data_types: vec![LngT, DubT],
                     column_names: to_string_vec(vec!["cnt", "score"]),
                 },
@@ -434,11 +434,11 @@ pub(crate) mod tests {
             }),
             exceptions: vec![],
         };
-        let broker_response: SqlBrokerResponse<TestRow> = Result::from(raw_broker_response).unwrap();
+        let broker_response: SqlResponse<TestRow> = Result::from(raw_broker_response).unwrap();
 
-        assert_eq!(broker_response, SqlBrokerResponse {
-            result_table: Some(ResultTable {
-                data_schema: RespSchema {
+        assert_eq!(broker_response, SqlResponse {
+            table: Some(Table {
+                schema: Schema {
                     column_data_types: vec![LngT, DubT],
                     column_name_to_index: BiMap::from_iter(vec![
                         ("cnt".to_string(), 0), ("score".to_string(), 1),
@@ -451,89 +451,89 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn result_table_get_row_count_provides_correct_number_of_rows() {
-        assert_eq!(test_result_table().get_row_count(), 1);
+    fn table_get_row_count_provides_correct_number_of_rows() {
+        assert_eq!(test_table().get_row_count(), 1);
     }
 
     #[test]
-    fn test_result_table_get_row_provides_correct_row() {
-        assert_eq!(test_result_table().get_row(0).unwrap(), &test_data_row());
+    fn table_get_row_provides_correct_row() {
+        assert_eq!(test_table().get_row(0).unwrap(), &test_data_row());
     }
 
     #[test]
-    fn result_table_get_row_returns_error_for_out_of_bounds() {
-        match test_result_table().get_row(1).unwrap_err() {
+    fn table_get_row_returns_error_for_out_of_bounds() {
+        match test_table().get_row(1).unwrap_err() {
             Error::InvalidResultRowIndex(index) => assert_eq!(index, 1),
             _ => panic!("Incorrect error kind"),
         }
     }
 
     #[test]
-    fn resp_schema_get_column_count_provides_correct_number_of_columns() {
-        assert_eq!(test_resp_schema().get_column_count(), 2);
+    fn schema_get_column_count_provides_correct_number_of_columns() {
+        assert_eq!(test_schema().get_column_count(), 2);
     }
 
     #[test]
-    fn resp_schema_get_column_name_provides_correct_name() {
-        assert_eq!(test_resp_schema().get_column_name(1).unwrap(), "cnt2");
+    fn schema_get_column_name_provides_correct_name() {
+        assert_eq!(test_schema().get_column_name(1).unwrap(), "cnt2");
     }
 
     #[test]
-    fn resp_schema_get_column_name_returns_error_for_out_of_bounds() {
-        match test_resp_schema().get_column_name(3).unwrap_err() {
+    fn schema_get_column_name_returns_error_for_out_of_bounds() {
+        match test_schema().get_column_name(3).unwrap_err() {
             Error::InvalidResultColumnIndex(index) => assert_eq!(index, 3),
             _ => panic!("Incorrect error kind"),
         }
     }
 
     #[test]
-    fn resp_schema_get_column_index_provides_correct_index() {
-        assert_eq!(test_resp_schema().get_column_index("cnt2").unwrap(), 1);
+    fn schema_get_column_index_provides_correct_index() {
+        assert_eq!(test_schema().get_column_index("cnt2").unwrap(), 1);
     }
 
     #[test]
-    fn resp_schema_get_column_index_returns_error_for_out_of_bounds() {
-        match test_resp_schema().get_column_index("unknown").unwrap_err() {
+    fn schema_get_column_index_returns_error_for_out_of_bounds() {
+        match test_schema().get_column_index("unknown").unwrap_err() {
             Error::InvalidResultColumnName(name) => assert_eq!(name, "unknown".to_string()),
             _ => panic!("Incorrect error kind"),
         }
     }
 
     #[test]
-    fn resp_schema_get_column_data_type_provides_correct_date_type() {
-        assert_eq!(test_resp_schema().get_column_data_type(1).unwrap(), IntT);
+    fn schema_get_column_data_type_provides_correct_date_type() {
+        assert_eq!(test_schema().get_column_data_type(1).unwrap(), IntT);
     }
 
     #[test]
-    fn resp_schema_get_column_date_type_returns_error_for_out_of_bounds() {
-        match test_resp_schema().get_column_data_type(3).unwrap_err() {
+    fn schema_get_column_date_type_returns_error_for_out_of_bounds() {
+        match test_schema().get_column_data_type(3).unwrap_err() {
             Error::InvalidResultColumnIndex(index) => assert_eq!(index, 3),
             _ => panic!("Incorrect error kind"),
         }
     }
 
     #[test]
-    fn resp_schema_get_column_data_type_by_name_provides_correct_date_type() {
-        assert_eq!(test_resp_schema().get_column_data_type_by_name("cnt2").unwrap(), IntT);
+    fn schema_get_column_data_type_by_name_provides_correct_date_type() {
+        assert_eq!(test_schema().get_column_data_type_by_name("cnt2").unwrap(), IntT);
     }
 
     #[test]
-    fn resp_schema_get_column_date_type_by_name_returns_error_for_out_of_bounds() {
-        match test_resp_schema().get_column_data_type_by_name("unknown").unwrap_err() {
+    fn schema_get_column_date_type_by_name_returns_error_for_out_of_bounds() {
+        match test_schema().get_column_data_type_by_name("unknown").unwrap_err() {
             Error::InvalidResultColumnName(name) => assert_eq!(name, "unknown".to_string()),
             _ => panic!("Incorrect error kind"),
         }
     }
 
-    pub fn test_result_table() -> ResultTable<DataRow> {
-        ResultTable {
-            data_schema: test_resp_schema(),
+    pub fn test_table() -> Table<DataRow> {
+        Table {
+            schema: test_schema(),
             rows: vec![test_data_row()],
         }
     }
 
-    pub fn test_resp_schema() -> RespSchema {
-        RespSchema {
+    pub fn test_schema() -> Schema {
+        Schema {
             column_data_types: vec![LngT, IntT],
             column_name_to_index: BiMap::from_iter(vec![
                 ("cnt".to_string(), 0),

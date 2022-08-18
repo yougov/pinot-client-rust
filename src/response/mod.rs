@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-pub use pql::PqlBrokerResponse;
-pub use sql::SqlBrokerResponse;
+pub use pql::PqlResponse;
+pub use sql::SqlResponse;
 
 pub mod data;
 pub mod pql;
@@ -13,13 +13,13 @@ pub mod deserialise;
 
 /// Pinot exception.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-pub struct Exception {
+pub struct PinotException {
     #[serde(rename(deserialize = "errorCode"))]
     pub error_code: i32,
     pub message: String,
 }
 
-/// ResponseStats carries all stats returned by a query.
+/// Carries all stats returned by a query.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ResponseStats {
     pub trace_info: HashMap<String, String>,
@@ -65,11 +65,11 @@ pub enum DataType {
 pub(crate) mod tests {
     use serde_json::{json, Value};
 
-    use crate::response::{PqlBrokerResponse, ResponseStats};
+    use crate::response::{PqlResponse, ResponseStats};
     use crate::response::data::DataRow;
     use crate::response::raw::SelectionResults;
-    use crate::response::sql::SqlBrokerResponse;
-    use crate::response::sql::tests::test_result_table;
+    use crate::response::sql::SqlResponse;
+    use crate::response::sql::tests::test_table;
     use crate::tests::to_string_vec;
 
     use super::*;
@@ -188,9 +188,9 @@ pub(crate) mod tests {
         })
     }
 
-    pub fn test_sql_broker_response() -> SqlBrokerResponse<DataRow> {
-        SqlBrokerResponse {
-            result_table: Some(test_result_table()),
+    pub fn test_sql_response() -> SqlResponse<DataRow> {
+        SqlResponse {
+            table: Some(test_table()),
             stats: Some(ResponseStats {
                 trace_info: Default::default(),
                 num_servers_queried: 1,
@@ -210,8 +210,8 @@ pub(crate) mod tests {
         }
     }
 
-    pub fn test_pql_broker_response() -> PqlBrokerResponse {
-        PqlBrokerResponse {
+    pub fn test_pql_response() -> PqlResponse {
+        PqlResponse {
             aggregation_results: vec![],
             selection_results: Some(SelectionResults::new(
                 to_string_vec(vec!["cnt", "extra"]),

@@ -17,7 +17,7 @@ use crate::response::deserialise::{
     deserialize_timestamps_from_json,
 };
 
-use super::sql::{FromRow, RespSchema};
+use super::sql::{FromRow, Schema};
 
 /// A row of `Data`
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -98,7 +98,7 @@ impl DataRow {
 
 impl FromRow for DataRow {
     fn from_row(
-        data_schema: &RespSchema,
+        data_schema: &Schema,
         row: Vec<Value>,
     ) -> std::result::Result<Self, serde_json::Error> {
         deserialize_row(data_schema, row)
@@ -106,7 +106,7 @@ impl FromRow for DataRow {
 }
 
 fn deserialize_row(
-    data_schema: &RespSchema,
+    data_schema: &Schema,
     row: Vec<Value>,
 ) -> std::result::Result<DataRow, serde_json::Error> {
     let row = row
@@ -365,7 +365,7 @@ pub(crate) mod tests {
 
     #[test]
     fn data_row_deserializes_for_string() {
-        let data_schema: RespSchema = RespSchema::new(
+        let data_schema: Schema = Schema::new(
             vec![StrAT, StrT, StrT],
             BiMap::from_iter(vec![
                 ("names".to_string(), 0),
@@ -382,7 +382,7 @@ pub(crate) mod tests {
 
     #[test]
     fn data_row_deserializes_for_int() {
-        let data_schema: RespSchema = RespSchema::new(
+        let data_schema: Schema = Schema::new(
             vec![IntAT, IntT, IntT],
             BiMap::from_iter(vec![
                 ("scores".to_string(), 0),
@@ -397,7 +397,7 @@ pub(crate) mod tests {
 
     #[test]
     fn data_row_deserializes_for_long() {
-        let data_schema: RespSchema = RespSchema::new(
+        let data_schema: Schema = Schema::new(
             vec![LngAT, LngT, LngT],
             BiMap::from_iter(vec![
                 ("scores".to_string(), 0),
@@ -412,7 +412,7 @@ pub(crate) mod tests {
 
     #[test]
     fn data_row_deserializes_for_float() {
-        let data_schema: RespSchema = RespSchema::new(
+        let data_schema: Schema = Schema::new(
             vec![FltAT, FltT, FltT, FltT],
             BiMap::from_iter(vec![
                 ("scores".to_string(), 0),
@@ -432,7 +432,7 @@ pub(crate) mod tests {
 
     #[test]
     fn data_row_deserializes_for_double() {
-        let data_schema: RespSchema = RespSchema::new(
+        let data_schema: Schema = Schema::new(
             vec![DubAT, DubT, DubT, DubT],
             BiMap::from_iter(vec![
                 ("scores".to_string(), 0),
@@ -452,7 +452,7 @@ pub(crate) mod tests {
 
     #[test]
     fn data_row_deserializes_for_boolean() {
-        let data_schema: RespSchema = RespSchema::new(
+        let data_schema: Schema = Schema::new(
             vec![BooAT, BooT, BooT, BooT],
             BiMap::from_iter(vec![
                 ("gamesPlayed".to_string(), 0),
@@ -472,7 +472,7 @@ pub(crate) mod tests {
 
     #[test]
     fn data_row_deserializes_for_timestamp() {
-        let data_schema: RespSchema = RespSchema::new(
+        let data_schema: Schema = Schema::new(
             vec![TimAT, TimT, TimT, TimT],
             BiMap::from_iter(vec![
                 ("datesPlayed".to_string(), 0),
@@ -497,7 +497,7 @@ pub(crate) mod tests {
 
     #[test]
     fn data_row_deserializes_for_bytes() {
-        let data_schema: RespSchema = RespSchema::new(
+        let data_schema: Schema = Schema::new(
             vec![BytAT, BytT, BytT, BytT],
             BiMap::from_iter(vec![
                 ("rawArray".to_string(), 0),
@@ -517,7 +517,7 @@ pub(crate) mod tests {
 
     #[test]
     fn data_row_deserializes_for_json() {
-        let data_schema: RespSchema = RespSchema::new(
+        let data_schema: Schema = Schema::new(
             vec![
                 JsnT, JsnT, JsnT, JsnT, JsnT, JsnT, JsnT,
                 JsnT, JsnT, JsnT, JsnT, JsnT, JsnT, JsnT,

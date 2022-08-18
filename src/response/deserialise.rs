@@ -4,7 +4,7 @@ use serde::{Deserialize, Deserializer};
 use serde::de::{DeserializeSeed, Error as SerdeError, MapAccess, Visitor};
 use serde_json::{Result, Value};
 
-use crate::response::sql::{FromRow, RespSchema};
+use crate::response::sql::{FromRow, Schema};
 
 const NEG_INFINITY_STRINGS: [&str; 3] = ["\"-Infinity\"", "-Infinity", "-∞"];
 const POS_INFINITY_STRINGS: [&str; 3] = ["\"Infinity\"", "Infinity", "∞"];
@@ -246,7 +246,7 @@ pub fn deserialize_json_from_json(raw_value: Value) -> Result<Value> {
 /// it provides the column names as keys.
 impl<'de, T: Deserialize<'de>> FromRow for T {
     fn from_row(
-        data_schema: &RespSchema,
+        data_schema: &Schema,
         row: Vec<Value>,
     ) -> Result<Self> {
         let d = JsonRowDeserializer::new(data_schema.clone(), row);
@@ -279,13 +279,13 @@ macro_rules! defer_base_deserialization {
 /// except when deserializing to a map or a structure, in which case
 /// it provides the column names as keys by implementing `MapAccess`.
 struct JsonRowDeserializer {
-    schema: RespSchema,
+    schema: Schema,
     row: Vec<Value>,
     requested: usize,
 }
 
 impl JsonRowDeserializer {
-    pub fn new(schema: RespSchema, row: Vec<Value>) -> Self {
+    pub fn new(schema: Schema, row: Vec<Value>) -> Self {
         Self { schema, row, requested: 0 }
     }
 
@@ -359,7 +359,7 @@ impl<'de> Deserializer<'de> for JsonRowDeserializer {
     }
 }
 
-/// Provides key information from `RespSchema`.
+/// Provides key information from a schema.
 ///
 /// As the row may need to be packed up into a `Value::Array` for
 /// deferred deserialization method, this implementation uses a `Vec`
@@ -416,7 +416,7 @@ pub(crate) mod tests {
         DataType::Timestamp as TimT,
         DataType::TimestampArray as TimAT,
     };
-    use crate::response::raw::RawRespSchema;
+    use crate::response::raw::RawSchema;
     use crate::tests::{date_time_utc_milli, to_string_vec};
 
     use super::*;
@@ -473,7 +473,7 @@ pub(crate) mod tests {
             v_int: i32,
             v_ints: Vec<i32>,
         }
-        let data_schema = RespSchema::from(RawRespSchema {
+        let data_schema = Schema::from(RawSchema {
             column_data_types: vec![IntT, IntAT],
             column_names: to_string_vec(vec!["v_int", "v_ints"]),
         });
@@ -489,7 +489,7 @@ pub(crate) mod tests {
             v_long: i64,
             v_longs: Vec<i64>,
         }
-        let data_schema = RespSchema::from(RawRespSchema {
+        let data_schema = Schema::from(RawSchema {
             column_data_types: vec![LngT, LngAT],
             column_names: to_string_vec(vec!["v_long", "v_longs"]),
         });
@@ -508,7 +508,7 @@ pub(crate) mod tests {
             #[serde(deserialize_with = "deserialize_floats")]
             v_floats: Vec<f32>,
         }
-        let data_schema = RespSchema::from(RawRespSchema {
+        let data_schema = Schema::from(RawSchema {
             column_data_types: vec![FltT, FltT, FltAT],
             column_names: to_string_vec(vec!["v_float", "v_float_neg_inf", "v_floats"]),
         });
@@ -531,7 +531,7 @@ pub(crate) mod tests {
             #[serde(deserialize_with = "deserialize_doubles")]
             v_doubles: Vec<f64>,
         }
-        let data_schema = RespSchema::from(RawRespSchema {
+        let data_schema = Schema::from(RawSchema {
             column_data_types: vec![DubT, DubT, DubAT],
             column_names: to_string_vec(vec!["v_double", "v_double_neg_inf", "v_doubles"]),
         });
@@ -551,7 +551,7 @@ pub(crate) mod tests {
             v_boolean: bool,
             v_booleans: Vec<bool>,
         }
-        let data_schema = RespSchema::from(RawRespSchema {
+        let data_schema = Schema::from(RawSchema {
             column_data_types: vec![BooT, BooAT],
             column_names: to_string_vec(vec!["v_boolean", "v_booleans"]),
         });
@@ -567,7 +567,7 @@ pub(crate) mod tests {
             v_string: String,
             v_strings: Vec<String>,
         }
-        let data_schema = RespSchema::from(RawRespSchema {
+        let data_schema = Schema::from(RawSchema {
             column_data_types: vec![StrT, StrAT],
             column_names: to_string_vec(vec!["v_string", "v_strings"]),
         });
@@ -588,7 +588,7 @@ pub(crate) mod tests {
             #[serde(deserialize_with = "deserialize_timestamps")]
             v_timestamps: Vec<DateTime<Utc>>,
         }
-        let data_schema = RespSchema::from(RawRespSchema {
+        let data_schema = Schema::from(RawSchema {
             column_data_types: vec![TimT, TimAT],
             column_names: to_string_vec(vec!["v_timestamp", "v_timestamps"]),
         });
@@ -616,7 +616,7 @@ pub(crate) mod tests {
             v_timestamps_from_strings: Vec<DateTime<Utc>>,
             v_timestamps_as_strings: Vec<String>,
         }
-        let data_schema = RespSchema::from(RawRespSchema {
+        let data_schema = Schema::from(RawSchema {
             column_data_types: vec![TimT, TimT, TimAT, TimAT],
             column_names: to_string_vec(vec![
                 "v_timestamp_from_string", "v_timestamp_as_string",
@@ -651,7 +651,7 @@ pub(crate) mod tests {
             v_bytes_arr: Vec<Vec<u8>>,
             v_hex_arr: Vec<String>,
         }
-        let data_schema = RespSchema::from(RawRespSchema {
+        let data_schema = Schema::from(RawSchema {
             column_data_types: vec![BytT, BytT, BytAT, BytAT],
             column_names: to_string_vec(vec!["v_bytes", "v_hex", "v_bytes_arr", "v_hex_arr"]),
         });
@@ -675,7 +675,7 @@ pub(crate) mod tests {
             v_json_from_string: Value,
             v_json_as_string: String,
         }
-        let data_schema = RespSchema::from(RawRespSchema {
+        let data_schema = Schema::from(RawSchema {
             column_data_types: vec![JsnT, JsnT, JsnT],
             column_names: to_string_vec(vec!["v_json", "v_json_from_string", "v_json_as_string"]),
         });
@@ -696,7 +696,7 @@ pub(crate) mod tests {
             #[serde(deserialize_with = "deserialize_json")]
             Value,
         );
-        let data_schema = RespSchema::from(RawRespSchema {
+        let data_schema = Schema::from(RawSchema {
             column_data_types: vec![IntT, JsnT],
             column_names: to_string_vec(vec!["v_int", "v_json"]),
         });
@@ -708,7 +708,7 @@ pub(crate) mod tests {
     #[test]
     fn pinot_row_deserializable_to_map() {
         type TestRow = HashMap<String, String>;
-        let data_schema = RespSchema::from(RawRespSchema {
+        let data_schema = Schema::from(RawSchema {
             column_data_types: vec![IntT, StrT],
             column_names: to_string_vec(vec!["v_int", "v_string"]),
         });
@@ -723,7 +723,7 @@ pub(crate) mod tests {
     #[test]
     fn pinot_row_deserializable_to_fieldless_tuple() {
         type TestRow = (i32, Value);
-        let data_schema = RespSchema::from(RawRespSchema {
+        let data_schema = Schema::from(RawSchema {
             column_data_types: vec![IntT, JsnT],
             column_names: to_string_vec(vec!["v_int", "v_json"]),
         });

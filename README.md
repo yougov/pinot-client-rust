@@ -108,12 +108,12 @@ Response Format
 ---------------
 
 Query Responses are defined by one of two broker response structures.
-SQL queries return `SqlBrokerResponse`, whose generic parameter is supported by all structs implementing the 
-`FromRow` trait, whereas PQL queries return `PqlBrokerResponse`.
-`SqlBrokerResponse` contains a `ResultTable`, the holder for SQL query data, whereas `PqlBrokerResponse` contains 
+SQL queries return `SqlResponse`, whose generic parameter is supported by all structs implementing the 
+`FromRow` trait, whereas PQL queries return `PqlResponse`.
+`SqlResponse` contains a `Table`, the holder for SQL query data, whereas `PqlResponse` contains 
 `AggregationResults` and `SelectionResults`, the holders for PQL query data. 
-Exceptions for a given request for both `SqlBrokerResponse` and `PqlBrokerResponse` are stored in the `Exception` array.
-Stats for a given request for both `SqlBrokerResponse` and `PqlBrokerResponse` are stored in `ResponseStats`.
+Exceptions for a given request for both `SqlResponse` and `PqlResponse` are stored in the `Exception` array.
+Stats for a given request for both `SqlResponse` and `PqlResponse` are stored in `ResponseStats`.
 
 ### Common
 
@@ -122,7 +122,7 @@ Stats for a given request for both `SqlBrokerResponse` and `PqlBrokerResponse` a
 ```rust
 /// Pinot exception.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
-pub struct Exception {
+pub struct PinotException {
     #[serde(rename(deserialize = "errorCode"))]
     pub error_code: i32,
     pub message: String,
@@ -154,12 +154,12 @@ pub struct ResponseStats {
 
 ### PQL
 
-`PqlBrokerResponse` is defined as:
+`PqlResponse` is defined as:
 
 ```rust
-/// PqlBrokerResponse is the data structure for broker response to a PQL query.
+/// PqlResponse is the data structure for broker response to a PQL query.
 #[derive(Clone, Debug, PartialEq)]
-pub struct PqlBrokerResponse {
+pub struct PqlResponse {
     pub aggregation_results: Vec<AggregationResult>,
     pub selection_results: Option<SelectionResults>,
     pub stats: Option<ResponseStats>,
@@ -168,40 +168,40 @@ pub struct PqlBrokerResponse {
 
 ### SQL
 
-`SqlBrokerResponse` is defined as:
+`SqlResponse` is defined as:
 
 ```rust
-/// SqlBrokerResponse is the data structure for a broker response to an SQL query.
+/// SqlResponse is the data structure for a broker response to an SQL query.
 #[derive(Clone, Debug, PartialEq)]
-pub struct SqlBrokerResponse<T: FromRow> {
-    pub result_table: Option<ResultTable<T>>,
+pub struct SqlResponse<T: FromRow> {
+    pub table: Option<Table<T>>,
     pub stats: Option<ResponseStats>,
 }
 ```
 
-`ResultTable` is defined as:
+`Table` is defined as:
 
 ```rust
-/// ResultTable is the holder for SQL queries.
+/// Table is the holder for SQL queries.
 #[derive(Clone, Debug, PartialEq)]
-pub struct ResultTable<T: FromRow> {
-    data_schema: RespSchema,
+pub struct Table<T: FromRow> {
+    schema: Schema,
     rows: Vec<T>,
 }
 ```
 
-`RespSchema` is defined as:
+`Schema` is defined as:
 
 ```rust
-/// RespSchema is response schema with a bimap to allow easy name <-> index retrieval
+/// Schema is response schema with a bimap to allow easy name <-> index retrieval
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RespSchema {
+pub struct Schema {
     column_data_types: Vec<DataType>,
     column_name_to_index: bimap::BiMap::<String, usize>,
 }
 ```
 
-There are multiple functions defined for `RespSchema`, like:
+There are multiple functions defined for `Schema`, like:
 
 ```
 fn get_column_count(&self) -> usize;
@@ -241,10 +241,10 @@ pub enum DataType {
 
 ```rust
 /// FromRow represents any structure which can deserialize
-/// the ResultTable.rows json field provided a `RespSchema`
+/// the Table.rows json field provided a `Schema`
 pub trait FromRow: Sized {
     fn from_row(
-        data_schema: &RespSchema,
+        data_schema: &Schema,
         row: Vec<Value>,
     ) -> std::result::Result<Self, serde_json::Error>;
 }

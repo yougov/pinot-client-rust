@@ -5,9 +5,9 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::errors::{Error, Result};
-use crate::response::{DataType, Exception};
+use crate::response::{DataType, PinotException};
 
-/// RawBrokerResponse is the data structure for a broker response to any query.
+/// Data structure for a broker response to any query.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub(crate) struct RawBrokerResponse {
     #[serde(default)]
@@ -18,8 +18,8 @@ pub(crate) struct RawBrokerResponse {
     pub selection_results: Option<SelectionResults>,
     #[serde(default)]
     #[serde(rename(deserialize = "resultTable"))]
-    pub result_table: Option<RawResultTable>,
-    pub exceptions: Vec<Exception>,
+    pub result_table: Option<RawTable>,
+    pub exceptions: Vec<PinotException>,
     #[serde(default)]
     #[serde(rename(deserialize = "traceInfo"))]
     pub trace_info: HashMap<String, String>,
@@ -51,7 +51,7 @@ pub(crate) struct RawBrokerResponse {
     pub min_consuming_freshness_time_ms: i64,
 }
 
-/// RawBrokerResponse is the data structure for a broker response to any query.
+/// Data structure for a broker response to any query excluding stats information.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub(crate) struct RawBrokerResponseWithoutStats {
     #[serde(default)]
@@ -62,11 +62,11 @@ pub(crate) struct RawBrokerResponseWithoutStats {
     pub selection_results: Option<SelectionResults>,
     #[serde(default)]
     #[serde(rename(deserialize = "resultTable"))]
-    pub result_table: Option<RawResultTable>,
-    pub exceptions: Vec<Exception>,
+    pub result_table: Option<RawTable>,
+    pub exceptions: Vec<PinotException>,
 }
 
-/// AggregationResult is the data structure for PQL aggregation result
+/// Data structure for PQL aggregation result
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct AggregationResult {
     pub function: String,
@@ -80,14 +80,14 @@ pub struct AggregationResult {
     pub group_by_result: Vec<GroupValue>,
 }
 
-/// GroupValue is the data structure for PQL aggregation GroupBy result
+/// Data structure for PQL aggregation GroupBy result
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct GroupValue {
     pub value: String,
     pub group: Vec<String>,
 }
 
-/// SelectionResults is the data structure for PQL selection result
+/// Data structure for PQL selection result
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct SelectionResults {
     columns: Vec<String>,
@@ -129,17 +129,17 @@ impl SelectionResults {
     }
 }
 
-/// ResultTable is the holder for SQL queries.
+/// Holder for SQL queries.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
-pub(crate) struct RawResultTable {
+pub(crate) struct RawTable {
     #[serde(rename(deserialize = "dataSchema"))]
-    pub data_schema: RawRespSchema,
+    pub schema: RawSchema,
     pub rows: Vec<Vec<Value>>,
 }
 
-/// RespSchema is a response schema as returned by pinot
+/// Schema as returned by pinot
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
-pub(crate) struct RawRespSchema {
+pub(crate) struct RawSchema {
     #[serde(rename(deserialize = "columnDataTypes"))]
     pub column_data_types: Vec<DataType>,
     #[serde(rename(deserialize = "columnNames"))]
@@ -161,7 +161,7 @@ pub(crate) mod tests {
     use super::*;
 
     #[test]
-    fn pql_broker_response_deserializes_pql_aggregation_query_correctly() {
+    fn pql_response_deserializes_pql_aggregation_query_correctly() {
         let json: Value = json!({
             "selectionResults": {
                 "columns": ["cnt", "extra"],
@@ -212,7 +212,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn pql_broker_response_deserializes_pql_aggregation_query_without_stats_correctly() {
+    fn pql_response_deserializes_pql_aggregation_query_without_stats_correctly() {
         let json: Value = json!({
             "selectionResults": {
                 "columns": ["cnt", "extra"],
@@ -249,7 +249,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn pql_broker_response_deserializes_exception_correctly() {
+    fn pql_response_deserializes_exception_correctly() {
         let error_message = test_broker_response_error_msg();
         let json = test_error_containing_broker_response(&error_message);
         let broker_response: RawBrokerResponse = serde_json::from_value(json).unwrap();
@@ -258,7 +258,7 @@ pub(crate) mod tests {
             aggregation_results: vec![],
             selection_results: None,
             result_table: None,
-            exceptions: vec![Exception {
+            exceptions: vec![PinotException {
                 error_code: 200,
                 message: error_message,
             }],
@@ -336,7 +336,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn sql_broker_response_deserializes_sql_aggregation_query_correctly() {
+    fn sql_response_deserializes_sql_aggregation_query_correctly() {
         let json: Value = json!({
             "resultTable": {
                 "dataSchema": {
@@ -367,8 +367,8 @@ pub(crate) mod tests {
         assert_eq!(broker_response, RawBrokerResponse {
             aggregation_results: vec![],
             selection_results: None,
-            result_table: Some(RawResultTable {
-                data_schema: RawRespSchema {
+            result_table: Some(RawTable {
+                schema: RawSchema {
                     column_data_types: vec![LngT],
                     column_names: to_string_vec(vec!["cnt"]),
                 },
@@ -393,7 +393,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn sql_broker_response_deserializes_sql_aggregation_query_without_stats_correctly() {
+    fn sql_response_deserializes_sql_aggregation_query_without_stats_correctly() {
         let json: Value = json!({
             "resultTable": {
                 "dataSchema": {
@@ -424,8 +424,8 @@ pub(crate) mod tests {
         assert_eq!(broker_response, RawBrokerResponseWithoutStats {
             aggregation_results: vec![],
             selection_results: None,
-            result_table: Some(RawResultTable {
-                data_schema: RawRespSchema {
+            result_table: Some(RawTable {
+                schema: RawSchema {
                     column_data_types: vec![LngT],
                     column_names: to_string_vec(vec!["cnt"]),
                 },
@@ -436,7 +436,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn sql_broker_response_deserializes_aggregation_group_by_response_correctly() {
+    fn sql_response_deserializes_aggregation_group_by_response_correctly() {
         let json: Value = json!({
             "resultTable": {
                 "dataSchema": {
@@ -478,8 +478,8 @@ pub(crate) mod tests {
         assert_eq!(broker_response, RawBrokerResponse {
             aggregation_results: vec![],
             selection_results: None,
-            result_table: Some(RawResultTable {
-                data_schema: RawRespSchema {
+            result_table: Some(RawTable {
+                schema: RawSchema {
                     column_data_types: vec![StrT, LngT, DubT],
                     column_names: to_string_vec(vec!["teamID", "cnt", "sum_homeRuns"]),
                 },
@@ -515,7 +515,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn sql_broker_response_deserializes_exception_correctly() {
+    fn sql_response_deserializes_exception_correctly() {
         let error_message = test_broker_response_error_msg();
         let json = test_error_containing_broker_response(&error_message);
         let broker_response: RawBrokerResponse = serde_json::from_value(json).unwrap();
@@ -524,7 +524,7 @@ pub(crate) mod tests {
             aggregation_results: vec![],
             selection_results: None,
             result_table: None,
-            exceptions: vec![Exception {
+            exceptions: vec![PinotException {
                 error_code: 200,
                 message: error_message,
             }],

@@ -1,4 +1,4 @@
-use pinot_client_rust::response::{PqlBrokerResponse, ResponseStats};
+use pinot_client_rust::response::{PqlResponse, ResponseStats};
 
 fn main() {
     let client = pinot_client_rust::connection::client_from_broker_list(
@@ -15,14 +15,14 @@ fn main() {
     println!("\n===Querying PQL===");
     for query in &pinot_queries {
         println!("\n---Trying to query Pinot: {}---", query);
-        let broker_response = client.execute_pql(table, query, true).unwrap();
-        print_pql_broker_resp(&broker_response);
+        let response = client.execute_pql(table, query, true).unwrap();
+        print_pql_response(&response);
     }
 }
 
-fn print_pql_broker_resp(broker_resp: &PqlBrokerResponse) {
+fn print_pql_response(broker_resp: &PqlResponse) {
     if let Some(stats) = &broker_resp.stats {
-        print_resp_stats(stats);
+        print_stats(stats);
     }
     if !broker_resp.aggregation_results.is_empty() {
         println!("Broker response aggregation results: {:?}", broker_resp.aggregation_results);
@@ -34,7 +34,7 @@ fn print_pql_broker_resp(broker_resp: &PqlBrokerResponse) {
     }
 }
 
-fn print_resp_stats(stats: &ResponseStats) {
+fn print_stats(stats: &ResponseStats) {
     println!(
         "Query Stats: response time - {} ms, scanned docs - {}, total docs - {}",
         stats.time_used_ms,

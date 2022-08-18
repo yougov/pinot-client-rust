@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
 use crate::errors::Result;
-use crate::response::PqlBrokerResponse;
-use crate::response::sql::{FromRow, SqlBrokerResponse};
+use crate::response::PqlResponse;
+use crate::response::sql::{FromRow, SqlResponse};
 
 /// A client transport that communicates with a Pinot cluster
 /// given a broker address
@@ -10,12 +10,12 @@ pub trait ClientTransport: Clone + Debug {
     /// Execute SQL
     fn execute_sql<T: FromRow>(
         &self, broker_address: &str, query: &str, include_stats: bool,
-    ) -> Result<SqlBrokerResponse<T>>;
+    ) -> Result<SqlResponse<T>>;
 
     /// Execute PQL
     fn execute_pql(
         &self, broker_address: &str, query: &str, include_stats: bool,
-    ) -> Result<PqlBrokerResponse>;
+    ) -> Result<PqlResponse>;
 }
 
 #[cfg(test)]
@@ -32,7 +32,7 @@ pub(crate) mod tests {
     #[derive(Clone)]
     pub struct TestClientTransport {
         sql_return_function: Arc<Box<dyn Fn(&str, &str) -> Result<Value>>>,
-        pql_return_function: Arc<Box<dyn Fn(&str, &str) -> Result<PqlBrokerResponse>>>,
+        pql_return_function: Arc<Box<dyn Fn(&str, &str) -> Result<PqlResponse>>>,
     }
 
     impl Debug for TestClientTransport {
@@ -45,7 +45,7 @@ pub(crate) mod tests {
         pub fn new<SqlFn, PqlFn>(sql_return_function: SqlFn, pql_return_function: PqlFn) -> Self
             where
                 SqlFn: 'static + Fn(&str, &str) -> Result<Value>,
-                PqlFn: 'static + Fn(&str, &str) -> Result<PqlBrokerResponse>,
+                PqlFn: 'static + Fn(&str, &str) -> Result<PqlResponse>,
         {
             Self {
                 sql_return_function: Arc::new(Box::new(sql_return_function)),
@@ -57,7 +57,7 @@ pub(crate) mod tests {
     impl ClientTransport for TestClientTransport {
         fn execute_sql<T: FromRow>(
             &self, broker_address: &str, query: &str, _include_stats: bool,
-        ) -> Result<SqlBrokerResponse<T>> {
+        ) -> Result<SqlResponse<T>> {
             let json: Value = (self.sql_return_function)(broker_address, query)?;
             let raw_broker_response: RawBrokerResponse = serde_json::from_value(json)?;
             Result::from(raw_broker_response)
@@ -65,7 +65,7 @@ pub(crate) mod tests {
 
         fn execute_pql(
             &self, broker_address: &str, query: &str, _include_stats: bool,
-        ) -> Result<PqlBrokerResponse> {
+        ) -> Result<PqlResponse> {
             (self.pql_return_function)(broker_address, query)
         }
     }
